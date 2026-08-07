@@ -13,16 +13,16 @@ import { MergedData } from '@/types';
 
 interface Props {
   data: MergedData[];
-  height?: number;
 }
 
-export default function CandleChart({ data, height = 350 }: Props) {
+export default function CandleChart({ data }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const { clientWidth, clientHeight } = containerRef.current;
 
     const chart = createChart(containerRef.current, {
       layout: {
@@ -40,8 +40,8 @@ export default function CandleChart({ data, height = 350 }: Props) {
         timeVisible: true,
         secondsVisible: false,
       },
-      width: containerRef.current.clientWidth,
-      height,
+      width: clientWidth,
+      height: clientHeight,
     });
 
     const series = chart.addCandlestickSeries({
@@ -57,7 +57,10 @@ export default function CandleChart({ data, height = 350 }: Props) {
     seriesRef.current = series;
 
     const observer = new ResizeObserver((entries) => {
-      if (entries[0]) chart.applyOptions({ width: entries[0].contentRect.width });
+      if (entries[0]) {
+        const { width, height } = entries[0].contentRect;
+        chart.applyOptions({ width, height });
+      }
     });
     observer.observe(containerRef.current);
 
@@ -65,7 +68,7 @@ export default function CandleChart({ data, height = 350 }: Props) {
       observer.disconnect();
       chart.remove();
     };
-  }, [height]);
+  }, []);
 
   useEffect(() => {
     if (!seriesRef.current || !data.length) return;
@@ -80,5 +83,5 @@ export default function CandleChart({ data, height = 350 }: Props) {
     chartRef.current?.timeScale().fitContent();
   }, [data]);
 
-  return <div ref={containerRef} className="w-full" />;
+  return <div ref={containerRef} className="w-full h-full" />;
 }

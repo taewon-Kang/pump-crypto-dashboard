@@ -14,10 +14,9 @@ import { MergedData } from '@/types';
 
 interface Props {
   data: MergedData[];
-  height?: number;
 }
 
-export default function RatioChart({ data, height = 200 }: Props) {
+export default function RatioChart({ data }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -25,6 +24,7 @@ export default function RatioChart({ data, height = 200 }: Props) {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const { clientWidth, clientHeight } = containerRef.current;
 
     const chart = createChart(containerRef.current, {
       layout: {
@@ -42,8 +42,8 @@ export default function RatioChart({ data, height = 200 }: Props) {
         timeVisible: true,
         secondsVisible: false,
       },
-      width: containerRef.current.clientWidth,
-      height,
+      width: clientWidth,
+      height: clientHeight,
     });
 
     const series = chart.addLineSeries({
@@ -52,9 +52,8 @@ export default function RatioChart({ data, height = 200 }: Props) {
       priceFormat: { type: 'custom', formatter: (v: number) => v.toFixed(2) + 'x' },
     });
 
-    // Reference line at ratio = 1
     const baseline = chart.addLineSeries({
-      color: 'rgba(107, 114, 128, 0.4)',
+      color: 'rgba(107, 114, 128, 0.35)',
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       crosshairMarkerVisible: false,
@@ -67,7 +66,10 @@ export default function RatioChart({ data, height = 200 }: Props) {
     baselineRef.current = baseline;
 
     const observer = new ResizeObserver((entries) => {
-      if (entries[0]) chart.applyOptions({ width: entries[0].contentRect.width });
+      if (entries[0]) {
+        const { width, height } = entries[0].contentRect;
+        chart.applyOptions({ width, height });
+      }
     });
     observer.observe(containerRef.current);
 
@@ -75,7 +77,7 @@ export default function RatioChart({ data, height = 200 }: Props) {
       observer.disconnect();
       chart.remove();
     };
-  }, [height]);
+  }, []);
 
   useEffect(() => {
     if (!seriesRef.current || !baselineRef.current || !data.length) return;
@@ -89,7 +91,6 @@ export default function RatioChart({ data, height = 200 }: Props) {
 
     seriesRef.current.setData(lineData);
 
-    // Baseline at 1 across entire time range
     if (lineData.length >= 2) {
       baselineRef.current.setData([
         { time: lineData[0].time, value: 1 },
@@ -100,5 +101,5 @@ export default function RatioChart({ data, height = 200 }: Props) {
     chartRef.current?.timeScale().fitContent();
   }, [data]);
 
-  return <div ref={containerRef} className="w-full" />;
+  return <div ref={containerRef} className="w-full h-full" />;
 }

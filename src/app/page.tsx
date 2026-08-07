@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useMarketData } from '@/hooks/useMarketData';
-import { COIN_OPTIONS, INTERVAL_OPTIONS, type Interval } from '@/types';
+import { INTERVAL_OPTIONS, type Interval } from '@/types';
 import CoinSelector from '@/components/CoinSelector';
 
 const CandleChart = dynamic(() => import('@/components/CandleChart'), { ssr: false });
@@ -20,9 +20,9 @@ function formatPrice(v: number): string {
   return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function LoadingChart({ height }: { height: number }) {
+function LoadingBounce() {
   return (
-    <div style={{ height }} className="flex items-center justify-center">
+    <div className="absolute inset-0 flex items-center justify-center">
       <div className="flex gap-1.5">
         {[0, 1, 2].map((i) => (
           <div
@@ -32,6 +32,31 @@ function LoadingChart({ height }: { height: number }) {
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+interface ChartCardProps {
+  title: string;
+  badge?: React.ReactNode;
+  indicator?: string;
+  children: React.ReactNode;
+  className?: string;
+}
+
+function ChartCard({ title, badge, indicator, children, className }: ChartCardProps) {
+  return (
+    <div className="bg-[#111827] rounded-xl border border-[#1F2937] overflow-hidden">
+      <div className="px-4 py-3 border-b border-[#1F2937] flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {indicator && (
+            <span className={`w-2 h-2 rounded-full shrink-0 ${indicator}`} />
+          )}
+          <span className="text-sm font-medium text-gray-200 truncate">{title}</span>
+        </div>
+        {badge && <div className="shrink-0">{badge}</div>}
+      </div>
+      <div className={`relative p-2 ${className ?? ''}`}>{children}</div>
     </div>
   );
 }
@@ -46,56 +71,40 @@ export default function HomePage() {
   const priceChange =
     latest && prev ? ((latest.close - prev.close) / prev.close) * 100 : null;
 
-  const coinLabel = COIN_OPTIONS.find((c) => c.value === symbol)?.label ?? symbol;
-
   return (
-    <div className="min-h-screen bg-[#0B0E1A] text-gray-100">
-      {/* Header */}
-      <header className="border-b border-[#1F2937] bg-[#0D1120]">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-xs font-bold">
-              C
-            </div>
-            <span className="font-semibold text-base tracking-tight">Crypto Dashboard</span>
-          </div>
-          <span className="text-xs text-gray-500 hidden sm:block">
-            Spot / Futures Volume Gap Analysis
-          </span>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-4">
-        {/* Control Bar */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <CoinSelector value={symbol} onChange={setSymbol} />
-            {latest && (
-              <div className="hidden sm:flex items-baseline gap-2">
-                <span className="text-xl font-bold tabular-nums">
-                  ${formatPrice(latest.close)}
+    <main className="max-w-7xl mx-auto w-full px-3 sm:px-6 py-4 sm:py-6 space-y-3 sm:space-y-4">
+      {/* Control Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        {/* Left: Coin selector + price */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <CoinSelector value={symbol} onChange={setSymbol} />
+          {latest && (
+            <div className="flex items-baseline gap-2">
+              <span className="text-lg sm:text-xl font-bold tabular-nums">
+                ${formatPrice(latest.close)}
+              </span>
+              {priceChange !== null && (
+                <span
+                  className={`text-sm font-medium ${
+                    priceChange >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {priceChange >= 0 ? '+' : ''}
+                  {priceChange.toFixed(2)}%
                 </span>
-                {priceChange !== null && (
-                  <span
-                    className={`text-sm font-medium ${
-                      priceChange >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}
-                  >
-                    {priceChange >= 0 ? '+' : ''}
-                    {priceChange.toFixed(2)}%
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
+        </div>
 
-          {/* Interval Selector */}
-          <div className="flex gap-1.5 bg-[#111827] border border-[#1F2937] rounded-lg p-1">
+        {/* Right: Interval selector */}
+        <div className="flex sm:ml-auto">
+          <div className="flex gap-1 bg-[#111827] border border-[#1F2937] rounded-lg p-1">
             {INTERVAL_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setInterval(opt.value)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                className={`px-3 sm:px-4 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all ${
                   interval === opt.value
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-gray-400 hover:text-gray-200 hover:bg-[#1F2937]'
@@ -106,103 +115,89 @@ export default function HomePage() {
             ))}
           </div>
         </div>
+      </div>
 
-        {/* Error Banner */}
-        {error && (
-          <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4 text-red-400 text-sm">
-            ⚠ 데이터 로딩 실패: {error}
-          </div>
-        )}
-
-        {/* Price Chart */}
-        <div className="bg-[#111827] rounded-xl border border-[#1F2937] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#1F2937] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-blue-400" />
-              <span className="text-sm font-medium text-gray-200">{coinLabel} Price</span>
-            </div>
-            {latest && (
-              <div className="flex items-baseline gap-2">
-                <span className="font-bold">${formatPrice(latest.close)}</span>
-                {priceChange !== null && (
-                  <span
-                    className={`text-xs font-medium ${
-                      priceChange >= 0 ? 'text-emerald-400' : 'text-red-400'
-                    }`}
-                  >
-                    {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="p-2">
-            {loading ? <LoadingChart height={350} /> : <CandleChart data={data} height={350} />}
-          </div>
+      {/* Error Banner */}
+      {error && (
+        <div className="bg-red-900/20 border border-red-800/50 rounded-xl px-4 py-3 text-red-400 text-sm">
+          ⚠ {error}
         </div>
+      )}
 
-        {/* Ratio Chart */}
-        <div className="bg-[#111827] rounded-xl border border-[#1F2937] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#1F2937] flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-violet-400" />
-              <span className="text-sm font-medium text-gray-200">
-                Futures / Spot Volume Ratio
-              </span>
-            </div>
-            {latest && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-500">Current</span>
-                <span className="font-bold text-violet-400">{latest.ratio.toFixed(2)}x</span>
-              </div>
-            )}
-          </div>
-          <div className="p-2">
-            {loading ? <LoadingChart height={200} /> : <RatioChart data={data} height={200} />}
-          </div>
+      {/* Price Chart */}
+      <ChartCard
+        title={`${symbol.replace('USDT', '/USDT')} Price`}
+        indicator="bg-blue-400"
+        badge={
+          latest && priceChange !== null ? (
+            <span
+              className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                priceChange >= 0
+                  ? 'bg-emerald-900/40 text-emerald-400'
+                  : 'bg-red-900/40 text-red-400'
+              }`}
+            >
+              {priceChange >= 0 ? '+' : ''}
+              {priceChange.toFixed(2)}%
+            </span>
+          ) : null
+        }
+      >
+        <div className="h-[220px] sm:h-[320px] lg:h-[380px] relative">
+          {loading ? <LoadingBounce /> : <CandleChart data={data} />}
         </div>
+      </ChartCard>
 
-        {/* Volume Comparison Chart */}
-        <div className="bg-[#111827] rounded-xl border border-[#1F2937] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#1F2937] flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-orange-400" />
-              <span className="text-sm font-medium text-gray-200">Spot vs Futures Volume</span>
-            </div>
-            <div className="flex items-center gap-4 text-xs">
+      {/* Ratio Chart */}
+      <ChartCard
+        title="Futures / Spot Volume Ratio"
+        indicator="bg-violet-400"
+        badge={
+          latest ? (
+            <span className="text-sm font-bold text-violet-400 tabular-nums">
+              {latest.ratio.toFixed(2)}x
+            </span>
+          ) : null
+        }
+      >
+        <div className="h-[140px] sm:h-[180px] lg:h-[200px] relative">
+          {loading ? <LoadingBounce /> : <RatioChart data={data} />}
+        </div>
+      </ChartCard>
+
+      {/* Volume Comparison Chart */}
+      <ChartCard
+        title="Spot vs Futures Volume"
+        indicator="bg-orange-400"
+        badge={
+          latest ? (
+            <div className="flex items-center gap-3 text-xs">
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm inline-block bg-blue-500/75" />
-                <span className="text-gray-400">Spot</span>
-                {latest && (
-                  <span className="text-blue-400 font-semibold ml-1">
-                    {formatVolume(latest.spotVolume)}
-                  </span>
-                )}
+                <span className="w-2.5 h-2.5 rounded-sm bg-blue-500/80 inline-block" />
+                <span className="text-gray-400 hidden sm:inline">Spot</span>
+                <span className="text-blue-400 font-semibold">
+                  {formatVolume(latest.spotVolume)}
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm inline-block bg-orange-500/75" />
-                <span className="text-gray-400">Futures</span>
-                {latest && (
-                  <span className="text-orange-400 font-semibold ml-1">
-                    {formatVolume(latest.futuresVolume)}
-                  </span>
-                )}
+                <span className="w-2.5 h-2.5 rounded-sm bg-orange-500/80 inline-block" />
+                <span className="text-gray-400 hidden sm:inline">Futures</span>
+                <span className="text-orange-400 font-semibold">
+                  {formatVolume(latest.futuresVolume)}
+                </span>
               </div>
             </div>
-          </div>
-          <div className="p-2">
-            {loading ? (
-              <LoadingChart height={250} />
-            ) : (
-              <VolumeBarChart data={data} height={250} />
-            )}
-          </div>
+          ) : null
+        }
+      >
+        <div className="h-[160px] sm:h-[220px] lg:h-[250px] relative">
+          {loading ? <LoadingBounce /> : <VolumeBarChart data={data} />}
         </div>
+      </ChartCard>
 
-        <p className="text-center text-xs text-gray-600 pb-4">
-          Data from Binance · {coinLabel} Perpetual · Refreshes every 60s
-        </p>
-      </main>
-    </div>
+      <p className="text-center text-xs text-gray-700 pb-2">
+        Binance Perpetual Futures · {INTERVAL_OPTIONS.find((o) => o.value === interval)?.label} · Refreshes every 60s
+      </p>
+    </main>
   );
 }

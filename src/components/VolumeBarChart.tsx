@@ -12,10 +12,9 @@ import { MergedData } from '@/types';
 
 interface Props {
   data: MergedData[];
-  height?: number;
 }
 
-export default function VolumeBarChart({ data, height = 250 }: Props) {
+export default function VolumeBarChart({ data }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const spotRef = useRef<ISeriesApi<'Histogram'> | null>(null);
@@ -23,6 +22,7 @@ export default function VolumeBarChart({ data, height = 250 }: Props) {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const { clientWidth, clientHeight } = containerRef.current;
 
     const chart = createChart(containerRef.current, {
       layout: {
@@ -42,11 +42,11 @@ export default function VolumeBarChart({ data, height = 250 }: Props) {
         timeVisible: true,
         secondsVisible: false,
       },
-      width: containerRef.current.clientWidth,
-      height,
+      width: clientWidth,
+      height: clientHeight,
     });
 
-    // Spot rendered first (behind), futures on top — both share right scale
+    // Spot rendered first (behind), futures on top
     const spotSeries = chart.addHistogramSeries({
       color: 'rgba(59, 130, 246, 0.75)',
       priceFormat: { type: 'volume' },
@@ -66,7 +66,10 @@ export default function VolumeBarChart({ data, height = 250 }: Props) {
     futuresRef.current = futuresSeries;
 
     const observer = new ResizeObserver((entries) => {
-      if (entries[0]) chart.applyOptions({ width: entries[0].contentRect.width });
+      if (entries[0]) {
+        const { width, height } = entries[0].contentRect;
+        chart.applyOptions({ width, height });
+      }
     });
     observer.observe(containerRef.current);
 
@@ -74,7 +77,7 @@ export default function VolumeBarChart({ data, height = 250 }: Props) {
       observer.disconnect();
       chart.remove();
     };
-  }, [height]);
+  }, []);
 
   useEffect(() => {
     if (!spotRef.current || !futuresRef.current || !data.length) return;
@@ -94,5 +97,5 @@ export default function VolumeBarChart({ data, height = 250 }: Props) {
     chartRef.current?.timeScale().fitContent();
   }, [data]);
 
-  return <div ref={containerRef} className="w-full" />;
+  return <div ref={containerRef} className="w-full h-full" />;
 }
