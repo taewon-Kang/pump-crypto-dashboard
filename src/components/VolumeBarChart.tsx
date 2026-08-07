@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   createChart,
   ColorType,
@@ -9,16 +9,39 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { MergedData } from '@/types';
+import type { ChartHandle } from '@/types/chart';
 
 interface Props {
   data: MergedData[];
 }
 
-export default function VolumeBarChart({ data }: Props) {
+const VolumeBarChart = forwardRef<ChartHandle, Props>(function VolumeBarChart({ data }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const spotRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const futuresRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  // Use futures series (on top) for crosshair sync
+  const dataMapRef = useRef<Map<number, number>>(new Map());
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      get chart() {
+        return chartRef.current!;
+      },
+      syncCrosshair(time: Time) {
+        const chart = chartRef.current;
+        const series = futuresRef.current;
+        if (!chart || !series) return;
+        const value = dataMapRef.current.get(time as number);
+        if (value !== undefined) chart.setCrosshairPosition(value, time, series);
+      },
+      clearCrosshair() {
+        chartRef.current?.clearCrosshairPosition();
+      },
+    }),
+    []
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -82,15 +105,17 @@ export default function VolumeBarChart({ data }: Props) {
   useEffect(() => {
     if (!spotRef.current || !futuresRef.current || !data.length) return;
 
-    const spotData: HistogramData<Time>[] = data.map((d) => ({
-      time: Math.floor(d.timestamp / 1000) as Time,
-      value: d.spotVolume,
-    }));
+    const map = new Map<number, number>();
+    const spotData: HistogramData<Time>[] = [];
+    const futuresData: HistogramData<Time>[] = [];
 
-    const futuresData: HistogramData<Time>[] = data.map((d) => ({
-      time: Math.floor(d.timestamp / 1000) as Time,
-      value: d.futuresVolume,
-    }));
+    for (const d of data) {
+      const t = Math.floor(d.timestamp / 1000) as Time;
+      map.set(t as number, d.futuresVolume);
+      spotData.push({ time: t, value: d.spotVolume });
+      futuresData.push({ time: t, value: d.futuresVolume });
+    }
+    dataMapRef.current = map;
 
     spotRef.current.setData(spotData);
     futuresRef.current.setData(futuresData);
@@ -98,4 +123,6 @@ export default function VolumeBarChart({ data }: Props) {
   }, [data]);
 
   return <div ref={containerRef} className="w-full h-full" />;
-}
+});
+
+export default VolumeBarChart;

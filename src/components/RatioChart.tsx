@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   createChart,
   ColorType,
@@ -11,16 +11,38 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { MergedData } from '@/types';
+import type { ChartHandle } from '@/types/chart';
 
 interface Props {
   data: MergedData[];
 }
 
-export default function RatioChart({ data }: Props) {
+const RatioChart = forwardRef<ChartHandle, Props>(function RatioChart({ data }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const baselineRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const dataMapRef = useRef<Map<number, number>>(new Map());
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      get chart() {
+        return chartRef.current!;
+      },
+      syncCrosshair(time: Time) {
+        const chart = chartRef.current;
+        const series = seriesRef.current;
+        if (!chart || !series) return;
+        const value = dataMapRef.current.get(time as number);
+        if (value !== undefined) chart.setCrosshairPosition(value, time, series);
+      },
+      clearCrosshair() {
+        chartRef.current?.clearCrosshairPosition();
+      },
+    }),
+    []
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -82,12 +104,17 @@ export default function RatioChart({ data }: Props) {
   useEffect(() => {
     if (!seriesRef.current || !baselineRef.current || !data.length) return;
 
-    const lineData: LineData<Time>[] = data
-      .filter((d) => d.ratio > 0 && isFinite(d.ratio))
-      .map((d) => ({
-        time: Math.floor(d.timestamp / 1000) as Time,
-        value: d.ratio,
-      }));
+    const map = new Map<number, number>();
+    const lineData: LineData<Time>[] = [];
+
+    for (const d of data) {
+      if (d.ratio > 0 && isFinite(d.ratio)) {
+        const t = Math.floor(d.timestamp / 1000);
+        map.set(t, d.ratio);
+        lineData.push({ time: t as Time, value: d.ratio });
+      }
+    }
+    dataMapRef.current = map;
 
     seriesRef.current.setData(lineData);
 
@@ -102,4 +129,6 @@ export default function RatioChart({ data }: Props) {
   }, [data]);
 
   return <div ref={containerRef} className="w-full h-full" />;
-}
+});
+
+export default RatioChart;

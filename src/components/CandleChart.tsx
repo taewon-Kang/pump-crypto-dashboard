@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   createChart,
   ColorType,
@@ -10,15 +10,48 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { MergedData } from '@/types';
+import type { ChartHandle } from '@/types/chart';
+
+function getPriceFormat(price: number): { type: 'price'; precision: number; minMove: number } {
+  if (!price || price <= 0) return { type: 'price', precision: 2, minMove: 0.01 };
+  if (price >= 100) return { type: 'price', precision: 2, minMove: 0.01 };
+  if (price >= 1) return { type: 'price', precision: 4, minMove: 0.0001 };
+  // For sub-1 prices: find significant digit position and show 3+ digits
+  const magnitude = Math.abs(Math.floor(Math.log10(price)));
+  const precision = Math.min(10, magnitude + 3);
+  const minMove = parseFloat(`1e-${precision}`);
+  return { type: 'price', precision, minMove };
+}
 
 interface Props {
   data: MergedData[];
 }
 
-export default function CandleChart({ data }: Props) {
+const CandleChart = forwardRef<ChartHandle, Props>(function CandleChart({ data }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const dataMapRef = useRef<Map<number, number>>(new Map());
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      get chart() {
+        return chartRef.current!;
+      },
+      syncCrosshair(time: Time) {
+        const chart = chartRef.current;
+        const series = seriesRef.current;
+        if (!chart || !series) return;
+        const value = dataMapRef.current.get(time as number);
+        if (value !== undefined) chart.setCrosshairPosition(value, time, series);
+      },
+      clearCrosshair() {
+        chartRef.current?.clearCrosshairPosition();
+      },
+    }),
+    []
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -72,16 +105,25 @@ export default function CandleChart({ data }: Props) {
 
   useEffect(() => {
     if (!seriesRef.current || !data.length) return;
-    const candleData: CandlestickData<Time>[] = data.map((d) => ({
-      time: Math.floor(d.timestamp / 1000) as Time,
-      open: d.open,
-      high: d.high,
-      low: d.low,
-      close: d.close,
-    }));
+
+    const latestClose = data[data.length - 1]?.close;
+    if (latestClose) {
+      seriesRef.current.applyOptions({ priceFormat: getPriceFormat(latestClose) });
+    }
+
+    const map = new Map<number, number>();
+    const candleData: CandlestickData<Time>[] = data.map((d) => {
+      const t = Math.floor(d.timestamp / 1000);
+      map.set(t, d.close);
+      return { time: t as Time, open: d.open, high: d.high, low: d.low, close: d.close };
+    });
+    dataMapRef.current = map;
+
     seriesRef.current.setData(candleData);
     chartRef.current?.timeScale().fitContent();
   }, [data]);
 
   return <div ref={containerRef} className="w-full h-full" />;
-}
+});
+
+export default CandleChart;

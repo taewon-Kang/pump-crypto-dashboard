@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchKlines } from '@/lib/binance';
+import { fetchAllKlines } from '@/lib/binance';
 import { MergedData } from '@/types';
 
 export async function GET(req: NextRequest) {
@@ -9,8 +9,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const [spotData, futuresData] = await Promise.all([
-      fetchKlines(symbol, interval, 'spot'),
-      fetchKlines(symbol, interval, 'futures'),
+      fetchAllKlines(symbol, interval, 'spot'),
+      fetchAllKlines(symbol, interval, 'futures'),
     ]);
 
     const futuresMap = new Map(futuresData.map((d) => [d.timestamp, d]));
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       });
 
     return NextResponse.json(merged, {
-      headers: { 'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=30' },
+      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
