@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Exchange, PriceType, CoinPerformance, PerformanceResult } from '@/types/performance';
 import ExchangeSelector from '@/components/ExchangeSelector';
 import TimeframeSelector from '@/components/TimeframeSelector';
@@ -7,6 +7,13 @@ import DateRangePicker from '@/components/DateRangePicker';
 import PriceTypeSelector from '@/components/PriceTypeSelector';
 import SearchBar from '@/components/SearchBar';
 import CoinPerformanceTable from '@/components/CoinPerformanceTable';
+import PriceVolumeChart from '@/components/PriceVolumeChart';
+import { useCoinKlines } from '@/hooks/useCoinKlines';
+
+// Resolve a table row back into the symbol format each exchange's candle API expects.
+function resolveChartSymbol(coin: CoinPerformance, exchange: Exchange): string {
+  return exchange === 'upbit' ? `KRW-${coin.symbol}` : coin.name;
+}
 
 function toDateTimeLocal(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -21,6 +28,19 @@ function getDefaults() {
   end.setMinutes(0, 0, 0);
   const start = new Date(end.getTime() - 7 * 86_400_000);
   return { start: toDateTimeLocal(start), end: toDateTimeLocal(end) };
+}
+
+function formatPrice(v: number, exchange: Exchange): string {
+  if (exchange === 'upbit') {
+    if (v >= 1000) return '₩' + Math.round(v).toLocaleString('ko-KR');
+    if (v >= 1) return '₩' + v.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+    return '₩' + v.toPrecision(4);
+  }
+  if (v >= 1000) return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (v >= 1) return '$' + v.toFixed(4);
+  if (v <= 0) return '$0';
+  const mag = Math.abs(Math.floor(Math.log10(v)));
+  return '$' + v.toFixed(Math.min(10, mag + 4));
 }
 
 export default function AltPerformancePage() {
@@ -42,6 +62,28 @@ export default function AltPerformancePage() {
   const [result, setResult] = useState<PerformanceResult | null>(null);
   const [search, setSearch] = useState('');
 
+  // Coin detail chart — selecting a table row swaps this out for the clicked coin
+  const [selectedCoin, setSelectedCoin] = useState<CoinPerformance | null>(null);
+  const [chartInterval, setChartInterval] = useState('1d');
+  const chartCardRef = useRef<HTMLDivElement>(null);
+
+  const chartSymbol = selectedCoin ? resolveChartSymbol(selectedCoin, resultExchange) : null;
+  const {
+    data: chartData,
+    loading: chartLoading,
+    error: chartError,
+  } = useCoinKlines(chartSymbol, resultExchange, chartInterval);
+
+  useEffect(() => {
+    if (selectedCoin) {
+      chartCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selectedCoin]);
+
+  function handleSelectCoin(coin: CoinPerformance) {
+    setSelectedCoin((prev) => (prev?.symbol === coin.symbol ? prev : coin));
+  }
+
   async function handleQuery() {
     if (!startDT || !endDT) {
       setError('시작/종료 날짜를 선택해주세요.');
@@ -58,6 +100,7 @@ export default function AltPerformancePage() {
     setError(null);
     setResult(null);
     setSearch('');
+    setSelectedCoin(null);
 
     try {
       const params = new URLSearchParams({
@@ -198,12 +241,85 @@ export default function AltPerformancePage() {
         </div>
       )}
 
+      {/* Coin detail chart — appears once a table row is clicked */}
+      {selectedCoin && (
+        <div
+          ref={chartCardRef}
+          className="bg-[#111827] rounded-xl border border-[#1F2937] overflow-hidden scroll-mt-3"
+        >
+          <div className="px-4 py-2.5 border-b border-[#1F2937] flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-baseline gap-2 min-w-0">
+              <span className="font-semibold text-gray-100 truncate">{selectedCoin.symbol}</span>
+              <span className="text-xs text-gray-600 truncate hidden sm:inline">{selectedCoin.name}</span>
+              {chartData.length > 0 && (
+                <span className="flex items-baseline gap-1.5 shrink-0">
+                  <span className="text-sm font-mono tabular-nums text-gray-200">
+                    {formatPrice(chartData[chartData.length - 1].close, resultExchange)}
+                  </span>
+                  {chartData.length > 1 && (() => {
+                    const last = chartData[chartData.length - 1];
+                    const prev = chartData[chartData.length - 2];
+                    const pct = ((last.close - prev.close) / prev.close) * 100;
+                    return (
+                      <span
+                        className={`text-xs font-medium ${
+                          pct >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}
+                      >
+                        {pct >= 0 ? '+' : ''}
+                        {pct.toFixed(2)}%
+                      </span>
+                    );
+                  })()}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <TimeframeSelector value={chartInterval} onChange={setChartInterval} />
+              <button
+                onClick={() => setSelectedCoin(null)}
+                aria-label="차트 닫기"
+                className="p-1.5 rounded-md text-gray-500 hover:text-gray-200 hover:bg-[#1F2937] transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div className="relative h-[240px] sm:h-[320px] lg:h-[380px]">
+            {chartLoading ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="flex gap-1.5">
+                  {[0, 1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"
+                      style={{ animationDelay: `${i * 0.15}s` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : chartError ? (
+              <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400 px-4 text-center">
+                ⚠ {chartError}
+              </div>
+            ) : (
+              <PriceVolumeChart data={chartData} />
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {coins.length > 0 && !loading && (
         <CoinPerformanceTable
           data={coins}
           exchange={resultExchange}
           searchQuery={search}
+          selectedSymbol={selectedCoin?.symbol}
+          onSelect={handleSelectCoin}
         />
       )}
 

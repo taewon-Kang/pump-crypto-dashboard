@@ -6,6 +6,8 @@ interface Props {
   data: CoinPerformance[];
   exchange: Exchange;
   searchQuery: string;
+  selectedSymbol?: string | null;
+  onSelect?: (row: CoinPerformance) => void;
 }
 
 function formatPrice(v: number, exchange: Exchange): string {
@@ -41,7 +43,13 @@ function SortIcon({ col, current, dir }: { col: SortColumn; current: SortColumn;
   );
 }
 
-export default function CoinPerformanceTable({ data, exchange, searchQuery }: Props) {
+export default function CoinPerformanceTable({
+  data,
+  exchange,
+  searchQuery,
+  selectedSymbol,
+  onSelect,
+}: Props) {
   const [sortCol, setSortCol] = useState<SortColumn>('change');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -104,10 +112,22 @@ export default function CoinPerformanceTable({ data, exchange, searchQuery }: Pr
         <tbody>
           {sorted.map((row, idx) => {
             const isPositive = row.change >= 0;
+            const isSelected = row.symbol === selectedSymbol;
             return (
               <tr
                 key={row.symbol}
-                className="border-b border-[#1F2937] last:border-0 hover:bg-[#111827] transition-colors"
+                onClick={() => onSelect?.(row)}
+                role={onSelect ? 'button' : undefined}
+                tabIndex={onSelect ? 0 : undefined}
+                onKeyDown={(e) => {
+                  if (onSelect && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onSelect(row);
+                  }
+                }}
+                className={`border-b border-[#1F2937] last:border-0 transition-colors ${
+                  onSelect ? 'cursor-pointer' : ''
+                } ${isSelected ? 'bg-blue-500/10 hover:bg-blue-500/15' : 'hover:bg-[#111827]'}`}
               >
                 <td className={`${cellClass} text-center text-gray-600 font-mono text-xs`}>
                   {idx + 1}
