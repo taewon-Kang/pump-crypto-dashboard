@@ -45,8 +45,12 @@ const RatioChart = forwardRef<ChartHandle, Props>(function RatioChart({ data }, 
       clearCrosshair() {
         chartRef.current?.clearCrosshairPosition();
       },
+      showLegendAt(time: Time | null) {
+        const value = time !== null ? dataMapRef.current.get(time as number) ?? null : null;
+        setHtml(legendHtml(value, time));
+      },
     }),
-    []
+    [setHtml]
   );
 
   function legendHtml(value: number | null, time: Time | null): string {

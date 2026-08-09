@@ -23,8 +23,11 @@ const VolumeBarChart = forwardRef<ChartHandle, Props>(function VolumeBarChart({ 
   const chartRef = useRef<IChartApi | null>(null);
   const spotRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const futuresRef = useRef<ISeriesApi<'Histogram'> | null>(null);
-  // Use futures series (on top) for crosshair sync
-  const dataMapRef = useRef<Map<number, number>>(new Map());
+  // Full row per timestamp — used for crosshair positioning (futures series,
+  // shown on top) and for the legend, since synced charts need to render the
+  // hovered bar even though setCrosshairPosition doesn't fire their own
+  // subscribeCrosshairMove.
+  const dataMapRef = useRef<Map<number, MergedData>>(new Map());
   const latestRef = useRef<{ time: number; spot: number; futures: number } | null>(null);
   const { legendRef, setHtml, attach } = useChartLegend();
 
@@ -38,14 +41,18 @@ const VolumeBarChart = forwardRef<ChartHandle, Props>(function VolumeBarChart({ 
         const chart = chartRef.current;
         const series = futuresRef.current;
         if (!chart || !series) return;
-        const value = dataMapRef.current.get(time as number);
-        if (value !== undefined) chart.setCrosshairPosition(value, time, series);
+        const row = dataMapRef.current.get(time as number);
+        if (row !== undefined) chart.setCrosshairPosition(row.futuresVolume, time, series);
       },
       clearCrosshair() {
         chartRef.current?.clearCrosshairPosition();
       },
+      showLegendAt(time: Time | null) {
+        const row = time !== null ? dataMapRef.current.get(time as number) : undefined;
+        setHtml(legendHtml(row?.spotVolume ?? null, row?.futuresVolume ?? null, time));
+      },
     }),
-    []
+    [setHtml]
   );
 
   function legendHtml(spot: number | null, futures: number | null, time: Time | null): string {
@@ -127,13 +134,13 @@ const VolumeBarChart = forwardRef<ChartHandle, Props>(function VolumeBarChart({ 
   useEffect(() => {
     if (!spotRef.current || !futuresRef.current || !data.length) return;
 
-    const map = new Map<number, number>();
+    const map = new Map<number, MergedData>();
     const spotData: HistogramData<Time>[] = [];
     const futuresData: HistogramData<Time>[] = [];
 
     for (const d of data) {
       const t = Math.floor(d.timestamp / 1000) as Time;
-      map.set(t as number, d.futuresVolume);
+      map.set(t as number, d);
       spotData.push({ time: t, value: d.spotVolume });
       futuresData.push({ time: t, value: d.futuresVolume });
     }

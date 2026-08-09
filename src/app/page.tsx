@@ -56,8 +56,10 @@ export default function HomePage() {
           others.forEach((h) => {
             if (param.time) {
               h.syncCrosshair(param.time);
+              h.showLegendAt(param.time);
             } else {
               h.clearCrosshair();
+              h.showLegendAt(null);
             }
           });
           isSyncingRef.current = false;

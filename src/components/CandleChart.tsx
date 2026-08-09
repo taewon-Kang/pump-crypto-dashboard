@@ -23,7 +23,11 @@ const CandleChart = forwardRef<ChartHandle, Props>(function CandleChart({ data }
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
-  const dataMapRef = useRef<Map<number, number>>(new Map());
+  // Full row per timestamp — doubles as the crosshair-position lookup (close)
+  // and the legend data source, so synced charts can render the hovered bar
+  // even though lightweight-charts' setCrosshairPosition doesn't itself fire
+  // subscribeCrosshairMove on the chart it's applied to.
+  const dataMapRef = useRef<Map<number, MergedData>>(new Map());
   const latestRef = useRef<MergedData | null>(null);
   const { legendRef, setHtml, attach } = useChartLegend();
 
@@ -37,17 +41,24 @@ const CandleChart = forwardRef<ChartHandle, Props>(function CandleChart({ data }
         const chart = chartRef.current;
         const series = seriesRef.current;
         if (!chart || !series) return;
-        const value = dataMapRef.current.get(time as number);
-        if (value !== undefined) chart.setCrosshairPosition(value, time, series);
+        const row = dataMapRef.current.get(time as number);
+        if (row !== undefined) chart.setCrosshairPosition(row.close, time, series);
       },
       clearCrosshair() {
         chartRef.current?.clearCrosshairPosition();
       },
+      showLegendAt(time: Time | null) {
+        const row = time !== null ? dataMapRef.current.get(time as number) : undefined;
+        setHtml(legendHtml(row ?? null, time));
+      },
     }),
-    []
+    [setHtml]
   );
 
-  function legendHtml(candle: CandlestickData<Time> | null, time: Time | null): string {
+  function legendHtml(
+    candle: { open: number; high: number; low: number; close: number } | null,
+    time: Time | null
+  ): string {
     const c = candle ?? latestRef.current;
     if (!c) return '';
     const t = time ?? (latestRef.current ? Math.floor(latestRef.current.timestamp / 1000) : null);
@@ -119,10 +130,10 @@ const CandleChart = forwardRef<ChartHandle, Props>(function CandleChart({ data }
       seriesRef.current.applyOptions({ priceFormat: getPriceFormat(latestClose) });
     }
 
-    const map = new Map<number, number>();
+    const map = new Map<number, MergedData>();
     const candleData: CandlestickData<Time>[] = data.map((d) => {
       const t = Math.floor(d.timestamp / 1000);
-      map.set(t, d.close);
+      map.set(t, d);
       return { time: t as Time, open: d.open, high: d.high, low: d.low, close: d.close };
     });
     dataMapRef.current = map;
