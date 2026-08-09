@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { LsEntry, Side } from '@/types/ls';
 import LsEntryForm from '@/components/LsEntryForm';
 import LsEntryCard from '@/components/LsEntryCard';
+import LoadingDots from '@/components/LoadingDots';
 
 export default function LongShortTrackerPage() {
   const [entries, setEntries] = useState<LsEntry[]>([]);
@@ -25,6 +26,8 @@ export default function LongShortTrackerPage() {
   }, []);
 
   useEffect(() => {
+    // Fetch-on-mount idiom — `load` itself owns the loading/error state updates.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
@@ -71,14 +74,8 @@ export default function LongShortTrackerPage() {
 
       {loading ? (
         <div className="bg-[#111827] rounded-xl border border-[#1F2937] px-4 py-8 text-center space-y-2">
-          <div className="flex justify-center gap-1.5">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
-              />
-            ))}
+          <div className="flex justify-center">
+            <LoadingDots />
           </div>
           <p className="text-sm text-gray-500">기록을 불러오는 중입니다...</p>
         </div>

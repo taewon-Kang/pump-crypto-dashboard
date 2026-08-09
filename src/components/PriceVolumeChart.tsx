@@ -11,34 +11,9 @@ import {
   type Time,
 } from 'lightweight-charts';
 import type { KlineRaw } from '@/types';
-
-function formatLegendTime(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toLocaleString('ko-KR', {
-    year: '2-digit',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatVolume(v: number): string {
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return v.toFixed(0);
-}
-
-function getPriceFormat(price: number): { type: 'price'; precision: number; minMove: number } {
-  if (!price || price <= 0) return { type: 'price', precision: 2, minMove: 0.01 };
-  if (price >= 100) return { type: 'price', precision: 2, minMove: 0.01 };
-  if (price >= 1) return { type: 'price', precision: 4, minMove: 0.0001 };
-  // Sub-1 prices: find significant digit position and show 3+ digits
-  const magnitude = Math.abs(Math.floor(Math.log10(price)));
-  const precision = Math.min(10, magnitude + 3);
-  const minMove = parseFloat(`1e-${precision}`);
-  return { type: 'price', precision, minMove };
-}
+import { CHART_COLORS, observeChartResize } from '@/lib/chart';
+import { formatLegendTime, formatVolume, getPriceFormat } from '@/lib/format';
+import { useChartLegend } from '@/hooks/useChartLegend';
 
 interface Props {
   data: KlineRaw[];
@@ -51,14 +26,28 @@ interface Props {
  */
 export default function PriceVolumeChart({ data }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const legendRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const latestRef = useRef<KlineRaw | null>(null);
-  const renderLegendRef = useRef<
-    (candle: CandlestickData<Time> | null, volume: number | null, time: Time | null) => void
-  >(() => {});
+  const { legendRef, setHtml, attach } = useChartLegend();
+
+  function legendHtml(candle: CandlestickData<Time> | null, volume: number | null, time: Time | null): string {
+    const c = candle ?? latestRef.current;
+    if (!c) return '';
+    const v = volume ?? latestRef.current?.volume ?? null;
+    const t = time ?? (latestRef.current ? (Math.floor(latestRef.current.timestamp / 1000) as Time) : null);
+    const color = c.close >= c.open ? CHART_COLORS.up : CHART_COLORS.down;
+    const precision = getPriceFormat(c.close).precision;
+    return `
+      <span class="text-gray-500">${t !== null ? formatLegendTime(t as number) : ''}</span>
+      <span class="ml-2 text-gray-500">O</span><span style="color:${color}">${c.open.toFixed(precision)}</span>
+      <span class="ml-1.5 text-gray-500">H</span><span style="color:${color}">${c.high.toFixed(precision)}</span>
+      <span class="ml-1.5 text-gray-500">L</span><span style="color:${color}">${c.low.toFixed(precision)}</span>
+      <span class="ml-1.5 text-gray-500">C</span><span style="color:${color}">${c.close.toFixed(precision)}</span>
+      <span class="ml-1.5 text-gray-500">Vol</span><span class="text-gray-300">${v !== null ? formatVolume(v) : '-'}</span>
+    `;
+  }
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -66,20 +55,20 @@ export default function PriceVolumeChart({ data }: Props) {
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#111827' },
-        textColor: '#9CA3AF',
+        background: { type: ColorType.Solid, color: CHART_COLORS.background },
+        textColor: CHART_COLORS.text,
       },
       grid: {
-        vertLines: { color: '#1F2937' },
-        horzLines: { color: '#1F2937' },
+        vertLines: { color: CHART_COLORS.grid },
+        horzLines: { color: CHART_COLORS.grid },
       },
       crosshair: { mode: CrosshairMode.Normal },
       rightPriceScale: {
-        borderColor: '#374151',
+        borderColor: CHART_COLORS.border,
         scaleMargins: { top: 0.08, bottom: 0.25 },
       },
       timeScale: {
-        borderColor: '#374151',
+        borderColor: CHART_COLORS.border,
         timeVisible: true,
         secondsVisible: false,
       },
@@ -88,12 +77,12 @@ export default function PriceVolumeChart({ data }: Props) {
     });
 
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#10B981',
-      downColor: '#EF4444',
-      borderUpColor: '#10B981',
-      borderDownColor: '#EF4444',
-      wickUpColor: '#10B981',
-      wickDownColor: '#EF4444',
+      upColor: CHART_COLORS.up,
+      downColor: CHART_COLORS.down,
+      borderUpColor: CHART_COLORS.up,
+      borderDownColor: CHART_COLORS.down,
+      wickUpColor: CHART_COLORS.up,
+      wickDownColor: CHART_COLORS.down,
       priceScaleId: 'right',
     });
 
@@ -109,67 +98,19 @@ export default function PriceVolumeChart({ data }: Props) {
     candleRef.current = candleSeries;
     volumeRef.current = volumeSeries;
 
-    function renderLegend(
-      candle: CandlestickData<Time> | null,
-      volume: number | null,
-      time: Time | null
-    ) {
-      const el = legendRef.current;
-      if (!el) return;
-      const c =
-        candle ??
-        (latestRef.current
-          ? {
-              open: latestRef.current.open,
-              high: latestRef.current.high,
-              low: latestRef.current.low,
-              close: latestRef.current.close,
-            }
-          : null);
-      const v = volume ?? latestRef.current?.volume ?? null;
-      const t =
-        time ?? (latestRef.current ? (Math.floor(latestRef.current.timestamp / 1000) as Time) : null);
-      if (!c) {
-        el.innerHTML = '';
-        return;
-      }
-      const isUp = c.close >= c.open;
-      const color = isUp ? '#10B981' : '#EF4444';
-      const precision = getPriceFormat(c.close).precision;
-      el.innerHTML = `
-        <span class="text-gray-500">${t !== null ? formatLegendTime(t as number) : ''}</span>
-        <span class="ml-2 text-gray-500">O</span><span style="color:${color}">${c.open.toFixed(precision)}</span>
-        <span class="ml-1.5 text-gray-500">H</span><span style="color:${color}">${c.high.toFixed(precision)}</span>
-        <span class="ml-1.5 text-gray-500">L</span><span style="color:${color}">${c.low.toFixed(precision)}</span>
-        <span class="ml-1.5 text-gray-500">C</span><span style="color:${color}">${c.close.toFixed(precision)}</span>
-        <span class="ml-1.5 text-gray-500">Vol</span><span class="text-gray-300">${v !== null ? formatVolume(v) : '-'}</span>
-      `;
-    }
-    renderLegendRef.current = renderLegend;
-
-    chart.subscribeCrosshairMove((param) => {
-      if (!param.time || !param.point) {
-        renderLegend(null, null, null);
-        return;
-      }
-      const candle = param.seriesData.get(candleSeries) as CandlestickData<Time> | undefined;
-      const volPoint = param.seriesData.get(volumeSeries) as HistogramData<Time> | undefined;
-      renderLegend(candle ?? null, volPoint ? volPoint.value : null, param.time);
+    attach(chart, (param) => {
+      const candle = param ? (param.seriesData.get(candleSeries) as CandlestickData<Time> | undefined) : undefined;
+      const volPoint = param ? (param.seriesData.get(volumeSeries) as HistogramData<Time> | undefined) : undefined;
+      return legendHtml(candle ?? null, volPoint ? volPoint.value : null, param?.time ?? null);
     });
 
-    const observer = new ResizeObserver((entries) => {
-      if (entries[0]) {
-        const { width, height } = entries[0].contentRect;
-        chart.applyOptions({ width, height });
-      }
-    });
-    observer.observe(containerRef.current);
+    const cleanupResize = observeChartResize(containerRef.current, chart);
 
     return () => {
-      observer.disconnect();
+      cleanupResize();
       chart.remove();
     };
-  }, []);
+  }, [attach]);
 
   useEffect(() => {
     if (!candleRef.current || !volumeRef.current || !data.length) return;
@@ -197,8 +138,8 @@ export default function PriceVolumeChart({ data }: Props) {
     candleRef.current.setData(candleData);
     volumeRef.current.setData(volumeData);
     chartRef.current?.timeScale().fitContent();
-    renderLegendRef.current(null, null, null);
-  }, [data]);
+    setHtml(legendHtml(null, null, null));
+  }, [data, setHtml]);
 
   return (
     <div ref={containerRef} className="w-full h-full relative">

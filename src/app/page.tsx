@@ -8,60 +8,9 @@ import CoinSelector from '@/components/CoinSelector';
 import CandleChart from '@/components/CandleChart';
 import RatioChart from '@/components/RatioChart';
 import VolumeBarChart from '@/components/VolumeBarChart';
-
-function formatVolume(v: number): string {
-  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
-  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
-  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
-  return v.toFixed(0);
-}
-
-function formatPrice(v: number): string {
-  if (v >= 100) return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1) return v.toFixed(4);
-  // Sub-1: show enough significant digits
-  const magnitude = Math.abs(Math.floor(Math.log10(v)));
-  return v.toFixed(Math.min(10, magnitude + 3));
-}
-
-function LoadingBounce() {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-[#111827]">
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"
-            style={{ animationDelay: `${i * 0.15}s` }}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-interface ChartCardProps {
-  title: string;
-  badge?: React.ReactNode;
-  indicator?: string;
-  children: React.ReactNode;
-  className?: string;
-}
-
-function ChartCard({ title, badge, indicator, children, className }: ChartCardProps) {
-  return (
-    <div className="bg-[#111827] rounded-xl border border-[#1F2937] overflow-hidden">
-      <div className="px-4 py-2 border-b border-[#1F2937] flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          {indicator && <span className={`w-2 h-2 rounded-full shrink-0 ${indicator}`} />}
-          <span className="text-sm font-medium text-gray-200 truncate">{title}</span>
-        </div>
-        {badge && <div className="shrink-0">{badge}</div>}
-      </div>
-      <div className={`relative ${className ?? ''}`}>{children}</div>
-    </div>
-  );
-}
+import ChartCard from '@/components/ChartCard';
+import LoadingOverlay from '@/components/LoadingOverlay';
+import { formatPrice, formatVolume } from '@/lib/format';
 
 export default function HomePage() {
   const [symbol, setSymbol] = useState('BTCUSDT');
@@ -137,7 +86,7 @@ export default function HomePage() {
           {latest && (
             <div className="flex items-baseline gap-2">
               <span className="text-lg sm:text-xl font-bold tabular-nums font-mono">
-                ${formatPrice(latest.close)}
+                {formatPrice(latest.close)}
               </span>
               {priceChange !== null && (
                 <span
@@ -198,7 +147,7 @@ export default function HomePage() {
         }
       >
         <div className="h-[165px] sm:h-[210px] lg:h-[260px] relative">
-          {loading ? <LoadingBounce /> : <CandleChart ref={candleRef} data={data} />}
+          {loading ? <LoadingOverlay /> : <CandleChart ref={candleRef} data={data} />}
         </div>
       </ChartCard>
 
@@ -215,7 +164,7 @@ export default function HomePage() {
         }
       >
         <div className="h-[80px] sm:h-[105px] lg:h-[120px] relative">
-          {loading ? <LoadingBounce /> : <RatioChart ref={ratioRef} data={data} />}
+          {loading ? <LoadingOverlay /> : <RatioChart ref={ratioRef} data={data} />}
         </div>
       </ChartCard>
 
@@ -241,7 +190,7 @@ export default function HomePage() {
         }
       >
         <div className="h-[100px] sm:h-[135px] lg:h-[160px] relative">
-          {loading ? <LoadingBounce /> : <VolumeBarChart ref={volumeRef} data={data} />}
+          {loading ? <LoadingOverlay /> : <VolumeBarChart ref={volumeRef} data={data} />}
         </div>
       </ChartCard>
 

@@ -1,6 +1,7 @@
 'use client';
 import { useState, useMemo, type ReactNode } from 'react';
 import type { CoinPerformance, SortColumn, SortDir, Exchange } from '@/types/performance';
+import { formatPrice } from '@/lib/format';
 
 interface Props {
   data: CoinPerformance[];
@@ -8,20 +9,6 @@ interface Props {
   searchQuery: string;
   selectedSymbol?: string | null;
   onSelect?: (row: CoinPerformance) => void;
-}
-
-function formatPrice(v: number, exchange: Exchange): string {
-  if (exchange === 'upbit') {
-    if (v >= 1000) return '₩' + Math.round(v).toLocaleString('ko-KR');
-    if (v >= 1) return '₩' + v.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
-    return '₩' + v.toPrecision(4);
-  }
-  // Binance USDT
-  if (v >= 1000) return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1) return '$' + v.toFixed(4);
-  if (v <= 0) return '$0';
-  const mag = Math.abs(Math.floor(Math.log10(v)));
-  return '$' + v.toFixed(Math.min(10, mag + 4));
 }
 
 function SortIcon({ col, current, dir }: { col: SortColumn; current: SortColumn; dir: SortDir }) {
@@ -40,6 +27,31 @@ function SortIcon({ col, current, dir }: { col: SortColumn; current: SortColumn;
     <svg className="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
     </svg>
+  );
+}
+
+const HEADER_CLASS = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider';
+const CELL_CLASS = 'px-3 py-2.5 text-sm';
+
+interface ThProps {
+  col: SortColumn;
+  children: ReactNode;
+  sortCol: SortColumn;
+  sortDir: SortDir;
+  onSort: (col: SortColumn) => void;
+}
+
+function Th({ col, children, sortCol, sortDir, onSort }: ThProps) {
+  return (
+    <th
+      className={`${HEADER_CLASS} cursor-pointer hover:text-gray-300 select-none transition-colors`}
+      onClick={() => onSort(col)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        <SortIcon col={col} current={sortCol} dir={sortDir} />
+      </div>
+    </th>
   );
 }
 
@@ -80,33 +92,16 @@ export default function CoinPerformanceTable({
 
   if (!data.length) return null;
 
-  const colClass = 'px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider';
-  const cellClass = 'px-3 py-2.5 text-sm';
-
-  function Th({ col, children }: { col: SortColumn; children: ReactNode }) {
-    return (
-      <th
-        className={`${colClass} cursor-pointer hover:text-gray-300 select-none transition-colors`}
-        onClick={() => handleSort(col)}
-      >
-        <div className="flex items-center gap-1">
-          {children}
-          <SortIcon col={col} current={sortCol} dir={sortDir} />
-        </div>
-      </th>
-    );
-  }
-
   return (
     <div className="overflow-x-auto rounded-xl border border-[#1F2937]">
       <table className="w-full text-left">
         <thead className="bg-[#111827] border-b border-[#1F2937]">
           <tr>
-            <th className={`${colClass} w-12 text-center`}>#</th>
-            <Th col="symbol">코인</Th>
-            <Th col="startPrice">시작 가격</Th>
-            <Th col="endPrice">종료 가격</Th>
-            <Th col="change">상승률</Th>
+            <th className={`${HEADER_CLASS} w-12 text-center`}>#</th>
+            <Th col="symbol" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>코인</Th>
+            <Th col="startPrice" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>시작 가격</Th>
+            <Th col="endPrice" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>종료 가격</Th>
+            <Th col="change" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}>상승률</Th>
           </tr>
         </thead>
         <tbody>
@@ -129,10 +124,10 @@ export default function CoinPerformanceTable({
                   onSelect ? 'cursor-pointer' : ''
                 } ${isSelected ? 'bg-blue-500/10 hover:bg-blue-500/15' : 'hover:bg-[#111827]'}`}
               >
-                <td className={`${cellClass} text-center text-gray-600 font-mono text-xs`}>
+                <td className={`${CELL_CLASS} text-center text-gray-600 font-mono text-xs`}>
                   {idx + 1}
                 </td>
-                <td className={`${cellClass}`}>
+                <td className={`${CELL_CLASS}`}>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-gray-100">{row.symbol}</span>
                     <span className="text-xs text-gray-600 hidden sm:inline truncate max-w-[120px]">
@@ -140,13 +135,13 @@ export default function CoinPerformanceTable({
                     </span>
                   </div>
                 </td>
-                <td className={`${cellClass} font-mono text-gray-300`}>
+                <td className={`${CELL_CLASS} font-mono text-gray-300`}>
                   {formatPrice(row.startPrice, exchange)}
                 </td>
-                <td className={`${cellClass} font-mono text-gray-300`}>
+                <td className={`${CELL_CLASS} font-mono text-gray-300`}>
                   {formatPrice(row.endPrice, exchange)}
                 </td>
-                <td className={cellClass}>
+                <td className={CELL_CLASS}>
                   <span
                     className={`inline-block font-semibold font-mono tabular-nums ${
                       isPositive ? 'text-emerald-400' : 'text-red-400'

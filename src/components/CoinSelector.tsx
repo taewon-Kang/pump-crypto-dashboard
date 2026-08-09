@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
+import LoadingDots from '@/components/LoadingDots';
 
 interface CoinInfo {
   symbol: string;
@@ -33,6 +34,9 @@ export default function CoinSelector({ value, onChange }: Props) {
     if (open) {
       setTimeout(() => searchRef.current?.focus(), 50);
     } else {
+      // Clear the search box whenever the dropdown closes, regardless of which
+      // of the several close paths (outside click, Escape, select, toggle) fired.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSearch('');
     }
   }, [open]);
@@ -129,19 +133,13 @@ export default function CoinSelector({ value, onChange }: Props) {
           <div ref={listRef} className="max-h-64 overflow-y-auto overscroll-contain">
             {loading ? (
               <div className="py-8 text-center text-sm text-gray-500">
-                <div className="flex justify-center gap-1 mb-2">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce"
-                      style={{ animationDelay: `${i * 0.15}s` }}
-                    />
-                  ))}
+                <div className="flex justify-center mb-2">
+                  <LoadingDots size="sm" />
                 </div>
                 Loading...
               </div>
             ) : filtered.length === 0 ? (
-              <div className="py-8 text-center text-sm text-gray-500">No results for "{search}"</div>
+              <div className="py-8 text-center text-sm text-gray-500">No results for &quot;{search}&quot;</div>
             ) : (
               filtered.map((coin) => {
                 const isActive = coin.symbol === value;

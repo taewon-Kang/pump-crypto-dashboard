@@ -1,14 +1,7 @@
 'use client';
 import type { LsEntry } from '@/types/ls';
 import { CHECKPOINT_LABELS } from '@/types/ls';
-
-function formatPrice(v: number): string {
-  if (v >= 1000) return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1) return '$' + v.toFixed(4);
-  if (v <= 0) return '$0';
-  const mag = Math.abs(Math.floor(Math.log10(v)));
-  return '$' + v.toFixed(Math.min(10, mag + 4));
-}
+import { formatPrice } from '@/lib/format';
 
 function formatTime(ms: number): string {
   return new Date(ms).toLocaleString('ko-KR', {

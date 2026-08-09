@@ -8,19 +8,15 @@ import PriceTypeSelector from '@/components/PriceTypeSelector';
 import SearchBar from '@/components/SearchBar';
 import CoinPerformanceTable from '@/components/CoinPerformanceTable';
 import PriceVolumeChart from '@/components/PriceVolumeChart';
+import LoadingDots from '@/components/LoadingDots';
+import LoadingOverlay from '@/components/LoadingOverlay';
 import { useCoinKlines } from '@/hooks/useCoinKlines';
+import { toDateTimeLocal } from '@/lib/date';
+import { formatPrice } from '@/lib/format';
 
 // Resolve a table row back into the symbol format each exchange's candle API expects.
 function resolveChartSymbol(coin: CoinPerformance, exchange: Exchange): string {
   return exchange === 'upbit' ? `KRW-${coin.symbol}` : coin.name;
-}
-
-function toDateTimeLocal(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
 }
 
 function getDefaults() {
@@ -28,19 +24,6 @@ function getDefaults() {
   end.setMinutes(0, 0, 0);
   const start = new Date(end.getTime() - 7 * 86_400_000);
   return { start: toDateTimeLocal(start), end: toDateTimeLocal(end) };
-}
-
-function formatPrice(v: number, exchange: Exchange): string {
-  if (exchange === 'upbit') {
-    if (v >= 1000) return '₩' + Math.round(v).toLocaleString('ko-KR');
-    if (v >= 1) return '₩' + v.toLocaleString('ko-KR', { maximumFractionDigits: 2 });
-    return '₩' + v.toPrecision(4);
-  }
-  if (v >= 1000) return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  if (v >= 1) return '$' + v.toFixed(4);
-  if (v <= 0) return '$0';
-  const mag = Math.abs(Math.floor(Math.log10(v)));
-  return '$' + v.toFixed(Math.min(10, mag + 4));
 }
 
 export default function AltPerformancePage() {
@@ -199,14 +182,8 @@ export default function AltPerformancePage() {
       {/* Loading hint */}
       {loading && (
         <div className="bg-[#111827] rounded-xl border border-[#1F2937] px-4 py-8 text-center space-y-2">
-          <div className="flex justify-center gap-1.5">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
-              />
-            ))}
+          <div className="flex justify-center">
+            <LoadingDots />
           </div>
           <p className="text-sm text-gray-500">
             {exchange === 'upbit' ? 'Upbit' : 'Binance'} 전체 코인 데이터를 가져오는 중입니다...
@@ -290,17 +267,7 @@ export default function AltPerformancePage() {
 
           <div className="relative h-[240px] sm:h-[320px] lg:h-[380px]">
             {chartLoading ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="flex gap-1.5">
-                  {[0, 1, 2].map((i) => (
-                    <div
-                      key={i}
-                      className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"
-                      style={{ animationDelay: `${i * 0.15}s` }}
-                    />
-                  ))}
-                </div>
-              </div>
+              <LoadingOverlay />
             ) : chartError ? (
               <div className="absolute inset-0 flex items-center justify-center text-sm text-red-400 px-4 text-center">
                 ⚠ {chartError}

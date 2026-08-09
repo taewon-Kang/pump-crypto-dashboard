@@ -12,16 +12,9 @@ import {
 } from 'lightweight-charts';
 import { MergedData } from '@/types';
 import type { ChartHandle } from '@/types/chart';
-
-function formatLegendTime(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toLocaleString('ko-KR', {
-    year: '2-digit',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { CHART_COLORS, observeChartResize } from '@/lib/chart';
+import { formatLegendTime } from '@/lib/format';
+import { useChartLegend } from '@/hooks/useChartLegend';
 
 interface Props {
   data: MergedData[];
@@ -29,13 +22,12 @@ interface Props {
 
 const RatioChart = forwardRef<ChartHandle, Props>(function RatioChart({ data }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const legendRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const baselineRef = useRef<ISeriesApi<'Line'> | null>(null);
   const dataMapRef = useRef<Map<number, number>>(new Map());
   const latestRef = useRef<{ time: number; ratio: number } | null>(null);
-  const renderLegendRef = useRef<(value: number | null, time: Time | null) => void>(() => {});
+  const { legendRef, setHtml, attach } = useChartLegend();
 
   useImperativeHandle(
     ref,
@@ -57,23 +49,35 @@ const RatioChart = forwardRef<ChartHandle, Props>(function RatioChart({ data }, 
     []
   );
 
+  function legendHtml(value: number | null, time: Time | null): string {
+    const v = value ?? latestRef.current?.ratio ?? null;
+    if (v === null) return '';
+    const t = time ?? (latestRef.current ? (latestRef.current.time as Time) : null);
+    const color = v >= 1 ? '#8B5CF6' : '#6B7280';
+    return `
+      <span class="text-gray-500">${t !== null ? formatLegendTime(t as number) : ''}</span>
+      <span class="ml-2 text-gray-500">Ratio</span>
+      <span style="color:${color}">${v.toFixed(2)}x</span>
+    `;
+  }
+
   useEffect(() => {
     if (!containerRef.current) return;
     const { clientWidth, clientHeight } = containerRef.current;
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#111827' },
-        textColor: '#9CA3AF',
+        background: { type: ColorType.Solid, color: CHART_COLORS.background },
+        textColor: CHART_COLORS.text,
       },
       grid: {
-        vertLines: { color: '#1F2937' },
-        horzLines: { color: '#1F2937' },
+        vertLines: { color: CHART_COLORS.grid },
+        horzLines: { color: CHART_COLORS.grid },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#374151' },
+      rightPriceScale: { borderColor: CHART_COLORS.border },
       timeScale: {
-        borderColor: '#374151',
+        borderColor: CHART_COLORS.border,
         timeVisible: true,
         secondsVisible: false,
       },
@@ -100,46 +104,18 @@ const RatioChart = forwardRef<ChartHandle, Props>(function RatioChart({ data }, 
     seriesRef.current = series;
     baselineRef.current = baseline;
 
-    function renderLegend(value: number | null, time: Time | null) {
-      const el = legendRef.current;
-      if (!el) return;
-      const v = value ?? latestRef.current?.ratio ?? null;
-      const t = time ?? (latestRef.current ? (latestRef.current.time as Time) : null);
-      if (v === null) {
-        el.innerHTML = '';
-        return;
-      }
-      const color = v >= 1 ? '#8B5CF6' : '#6B7280';
-      el.innerHTML = `
-        <span class="text-gray-500">${t !== null ? formatLegendTime(t as number) : ''}</span>
-        <span class="ml-2 text-gray-500">Ratio</span>
-        <span style="color:${color}">${v.toFixed(2)}x</span>
-      `;
-    }
-    renderLegendRef.current = renderLegend;
-
-    chart.subscribeCrosshairMove((param) => {
-      if (!param.time || !param.point) {
-        renderLegend(null, null);
-        return;
-      }
-      const point = param.seriesData.get(series) as LineData<Time> | undefined;
-      renderLegend(point ? point.value : null, param.time);
+    attach(chart, (param) => {
+      const point = param ? (param.seriesData.get(series) as LineData<Time> | undefined) : undefined;
+      return legendHtml(point ? point.value : null, param?.time ?? null);
     });
 
-    const observer = new ResizeObserver((entries) => {
-      if (entries[0]) {
-        const { width, height } = entries[0].contentRect;
-        chart.applyOptions({ width, height });
-      }
-    });
-    observer.observe(containerRef.current);
+    const cleanupResize = observeChartResize(containerRef.current, chart);
 
     return () => {
-      observer.disconnect();
+      cleanupResize();
       chart.remove();
     };
-  }, []);
+  }, [attach]);
 
   useEffect(() => {
     if (!seriesRef.current || !baselineRef.current || !data.length) return;
@@ -170,8 +146,8 @@ const RatioChart = forwardRef<ChartHandle, Props>(function RatioChart({ data }, 
     }
 
     chartRef.current?.timeScale().fitContent();
-    renderLegendRef.current(null, null);
-  }, [data]);
+    setHtml(legendHtml(null, null));
+  }, [data, setHtml]);
 
   return (
     <div ref={containerRef} className="w-full h-full relative">

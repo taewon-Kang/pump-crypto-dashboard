@@ -3,14 +3,7 @@ import { useState } from 'react';
 import type { Side } from '@/types/ls';
 import CoinSelector from '@/components/CoinSelector';
 import SideSelector from '@/components/SideSelector';
-
-function toDateTimeLocal(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
-}
+import { toDateTimeLocal } from '@/lib/date';
 
 interface Props {
   onSubmit: (data: { symbol: string; side: Side; entryTime: number; note: string }) => Promise<void>;
