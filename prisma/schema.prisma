@@ -1,0 +1,28 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Side {
+  LONG
+  SHORT
+}
+
+// A single long/short call the user logged for a Binance futures alt.
+// entryPrice is snapshotted at write time from Binance's futures kline
+// covering entryTime, so later reads don't drift if history changes.
+model LongShortEntry {
+  id         String   @id @default(cuid())
+  symbol     String // Binance futures symbol, e.g. "SUIUSDT"
+  side       Side
+  entryTime  DateTime
+  entryPrice Float
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([entryTime])
+}

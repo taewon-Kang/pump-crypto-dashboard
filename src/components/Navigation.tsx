@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 const NAV_ITEMS = [
   { label: 'Volume Gap', href: '/' },
   { label: 'Alt Performance', href: '/alt-performance' },
-  { label: 'L/S Tracker', href: '/longshort', comingSoon: true },
+  { label: 'L/S Tracker', href: '/longshort' },
 ];
 
 export default function Navigation() {
@@ -87,35 +87,12 @@ function NavLink({
   onClick?: () => void;
 }) {
   const desktopClass = `flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-    active
-      ? 'bg-blue-600/20 text-blue-400'
-      : item.comingSoon
-      ? 'text-gray-600 cursor-default'
-      : 'text-gray-400 hover:text-gray-100 hover:bg-[#1F2937]'
+    active ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-gray-100 hover:bg-[#1F2937]'
   }`;
 
   const mobileClass = `flex items-center justify-between w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-    active
-      ? 'bg-blue-600/20 text-blue-400'
-      : item.comingSoon
-      ? 'text-gray-600 cursor-default'
-      : 'text-gray-400 hover:text-gray-100 hover:bg-[#1F2937]'
+    active ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-gray-100 hover:bg-[#1F2937]'
   }`;
-
-  const badge = item.comingSoon && (
-    <span className="text-[10px] bg-[#2D3748] text-gray-500 px-1.5 py-0.5 rounded font-normal">
-      Soon
-    </span>
-  );
-
-  if (item.comingSoon) {
-    return (
-      <div className={mobile ? mobileClass : desktopClass}>
-        <span>{item.label}</span>
-        {badge}
-      </div>
-    );
-  }
 
   return (
     <Link href={item.href} className={mobile ? mobileClass : desktopClass} onClick={onClick}>
