@@ -3,11 +3,17 @@ import { KlineRaw } from '@/types';
 const SPOT_BASE = 'https://api.binance.com';
 const FUTURES_BASE = 'https://fapi.binance.com';
 
+// Binance API max limits per endpoint
+const MAX_LIMIT = {
+  spot: 1000,
+  futures: 1500,
+} as const;
+
 export async function fetchKlines(
   symbol: string,
   interval: string,
   type: 'spot' | 'futures',
-  limit = 1500,
+  limit: number,
   endTime?: number
 ): Promise<KlineRaw[]> {
   const base = type === 'spot' ? SPOT_BASE : FUTURES_BASE;
@@ -40,8 +46,8 @@ export async function fetchAllKlines(
   interval: string,
   type: 'spot' | 'futures'
 ): Promise<KlineRaw[]> {
-  const LIMIT = 1500;
-  const MAX_PAGES = 20; // up to 30,000 candles
+  const LIMIT = MAX_LIMIT[type]; // 1000 for spot, 1500 for futures
+  const MAX_PAGES = 30;
   const pages: KlineRaw[][] = [];
   let endTime: number | undefined;
 
@@ -51,8 +57,10 @@ export async function fetchAllKlines(
 
     pages.unshift(batch);
 
-    if (batch.length < LIMIT) break; // reached the beginning of history
+    // batch.length < LIMIT means we reached the earliest available candle
+    if (batch.length < LIMIT) break;
 
+    // Go further back: endTime = 1ms before the oldest candle in this batch
     endTime = batch[0].timestamp - 1;
   }
 

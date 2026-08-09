@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 
+export const maxDuration = 30;
+// Function region is set project-wide via vercel.json ("regions": ["icn1"]).
+// `preferredRegion` is deprecated in Next.js and no longer accepts region
+// codes on Vercel — see src/app/api/klines/route.ts for details.
+
 interface BinanceSymbol {
   symbol: string;
   status: string;

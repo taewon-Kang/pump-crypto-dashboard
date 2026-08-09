@@ -69,14 +69,15 @@ const VolumeBarChart = forwardRef<ChartHandle, Props>(function VolumeBarChart({ 
       height: clientHeight,
     });
 
-    // Spot rendered first (behind), futures on top
-    const spotSeries = chart.addHistogramSeries({
-      color: 'rgba(59, 130, 246, 0.75)',
+    // Futures rendered first (behind), spot on top
+    // Draw order matters: orange(futures) + blue(spot) → purple overlap, not skin-tone
+    const futuresSeries = chart.addHistogramSeries({
+      color: 'rgba(249, 115, 22, 0.9)',
       priceFormat: { type: 'volume' },
     });
 
-    const futuresSeries = chart.addHistogramSeries({
-      color: 'rgba(249, 115, 22, 0.75)',
+    const spotSeries = chart.addHistogramSeries({
+      color: 'rgba(59, 130, 246, 0.62)',
       priceFormat: { type: 'volume' },
     });
 

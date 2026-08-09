@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { fetchAllKlines } from '@/lib/binance';
 import { MergedData } from '@/types';
 
+export const maxDuration = 60;
+// Function region is set project-wide via vercel.json ("regions": ["icn1"])
+// because `preferredRegion` is deprecated in Next.js and Vercel no longer
+// accepts arbitrary region codes through it. Binance blocks US IPs (451),
+// so the function must run outside the default us-east (iad1) region.
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const symbol = searchParams.get('symbol') || 'BTCUSDT';

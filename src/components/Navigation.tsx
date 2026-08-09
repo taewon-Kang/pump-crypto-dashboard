@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const NAV_ITEMS = [
   { label: 'Volume Gap', href: '/' },
-  { label: 'Alt Performance', href: '/alts', comingSoon: true },
+  { label: 'Alt Performance', href: '/alt-performance' },
   { label: 'L/S Tracker', href: '/longshort', comingSoon: true },
 ];
 

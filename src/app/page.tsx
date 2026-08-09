@@ -51,7 +51,7 @@ interface ChartCardProps {
 function ChartCard({ title, badge, indicator, children, className }: ChartCardProps) {
   return (
     <div className="bg-[#111827] rounded-xl border border-[#1F2937] overflow-hidden">
-      <div className="px-4 py-3 border-b border-[#1F2937] flex items-center justify-between gap-2">
+      <div className="px-4 py-2 border-b border-[#1F2937] flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {indicator && <span className={`w-2 h-2 rounded-full shrink-0 ${indicator}`} />}
           <span className="text-sm font-medium text-gray-200 truncate">{title}</span>
@@ -65,7 +65,7 @@ function ChartCard({ title, badge, indicator, children, className }: ChartCardPr
 
 export default function HomePage() {
   const [symbol, setSymbol] = useState('BTCUSDT');
-  const [interval, setInterval] = useState<Interval>('4h');
+  const [interval, setInterval] = useState<Interval>('1d');
   const { data, loading, error } = useMarketData(symbol, interval);
 
   const candleRef = useRef<ChartHandle>(null);
@@ -129,7 +129,7 @@ export default function HomePage() {
     latest && prev ? ((latest.close - prev.close) / prev.close) * 100 : null;
 
   return (
-    <main className="max-w-7xl mx-auto w-full px-3 sm:px-6 py-4 sm:py-6 space-y-3 sm:space-y-4">
+    <main className="max-w-7xl mx-auto w-full px-3 sm:px-6 py-2 sm:py-3 space-y-2 sm:space-y-3">
       {/* Control Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <div className="flex items-center gap-3 flex-wrap">
@@ -197,7 +197,7 @@ export default function HomePage() {
           ) : null
         }
       >
-        <div className="h-[220px] sm:h-[320px] lg:h-[380px] relative">
+        <div className="h-[165px] sm:h-[210px] lg:h-[260px] relative">
           {loading ? <LoadingBounce /> : <CandleChart ref={candleRef} data={data} />}
         </div>
       </ChartCard>
@@ -214,7 +214,7 @@ export default function HomePage() {
           ) : null
         }
       >
-        <div className="h-[140px] sm:h-[180px] lg:h-[200px] relative">
+        <div className="h-[80px] sm:h-[105px] lg:h-[120px] relative">
           {loading ? <LoadingBounce /> : <RatioChart ref={ratioRef} data={data} />}
         </div>
       </ChartCard>
@@ -240,15 +240,11 @@ export default function HomePage() {
           ) : null
         }
       >
-        <div className="h-[160px] sm:h-[220px] lg:h-[250px] relative">
+        <div className="h-[100px] sm:h-[135px] lg:h-[160px] relative">
           {loading ? <LoadingBounce /> : <VolumeBarChart ref={volumeRef} data={data} />}
         </div>
       </ChartCard>
 
-      <p className="text-center text-xs text-gray-700 pb-2">
-        Binance Perpetual Futures ·{' '}
-        {INTERVAL_OPTIONS.find((o) => o.value === interval)?.label} · Refreshes every 5m
-      </p>
     </main>
   );
 }
