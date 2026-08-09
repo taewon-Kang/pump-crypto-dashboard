@@ -11,17 +11,38 @@ import {
 import { MergedData } from '@/types';
 import type { ChartHandle } from '@/types/chart';
 
+function formatLegendTime(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleString('ko-KR', {
+    year: '2-digit',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatVolume(v: number): string {
+  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return v.toFixed(0);
+}
+
 interface Props {
   data: MergedData[];
 }
 
 const VolumeBarChart = forwardRef<ChartHandle, Props>(function VolumeBarChart({ data }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const legendRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const spotRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const futuresRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   // Use futures series (on top) for crosshair sync
   const dataMapRef = useRef<Map<number, number>>(new Map());
+  const latestRef = useRef<{ time: number; spot: number; futures: number } | null>(null);
+  const renderLegendRef =
+    useRef<(spot: number | null, futures: number | null, time: Time | null) => void>(() => {});
 
   useImperativeHandle(
     ref,
@@ -89,6 +110,36 @@ const VolumeBarChart = forwardRef<ChartHandle, Props>(function VolumeBarChart({ 
     spotRef.current = spotSeries;
     futuresRef.current = futuresSeries;
 
+    function renderLegend(spot: number | null, futures: number | null, time: Time | null) {
+      const el = legendRef.current;
+      if (!el) return;
+      const s = spot ?? latestRef.current?.spot ?? null;
+      const f = futures ?? latestRef.current?.futures ?? null;
+      const t = time ?? (latestRef.current ? (latestRef.current.time as Time) : null);
+      if (s === null && f === null) {
+        el.innerHTML = '';
+        return;
+      }
+      el.innerHTML = `
+        <span class="text-gray-500">${t !== null ? formatLegendTime(t as number) : ''}</span>
+        <span class="ml-2 text-gray-500">Spot</span>
+        <span style="color:#60A5FA">${s !== null ? formatVolume(s) : '-'}</span>
+        <span class="ml-1.5 text-gray-500">Futures</span>
+        <span style="color:#FB923C">${f !== null ? formatVolume(f) : '-'}</span>
+      `;
+    }
+    renderLegendRef.current = renderLegend;
+
+    chart.subscribeCrosshairMove((param) => {
+      if (!param.time || !param.point) {
+        renderLegend(null, null, null);
+        return;
+      }
+      const spotPoint = param.seriesData.get(spotSeries) as HistogramData<Time> | undefined;
+      const futuresPoint = param.seriesData.get(futuresSeries) as HistogramData<Time> | undefined;
+      renderLegend(spotPoint ? spotPoint.value : null, futuresPoint ? futuresPoint.value : null, param.time);
+    });
+
     const observer = new ResizeObserver((entries) => {
       if (entries[0]) {
         const { width, height } = entries[0].contentRect;
@@ -117,13 +168,29 @@ const VolumeBarChart = forwardRef<ChartHandle, Props>(function VolumeBarChart({ 
       futuresData.push({ time: t, value: d.futuresVolume });
     }
     dataMapRef.current = map;
+    const lastRow = data[data.length - 1];
+    if (lastRow) {
+      latestRef.current = {
+        time: Math.floor(lastRow.timestamp / 1000),
+        spot: lastRow.spotVolume,
+        futures: lastRow.futuresVolume,
+      };
+    }
 
     spotRef.current.setData(spotData);
     futuresRef.current.setData(futuresData);
     chartRef.current?.timeScale().fitContent();
+    renderLegendRef.current(null, null, null);
   }, [data]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return (
+    <div ref={containerRef} className="w-full h-full relative">
+      <div
+        ref={legendRef}
+        className="absolute top-2 left-2.5 z-10 text-[11px] font-mono tabular-nums pointer-events-none whitespace-nowrap"
+      />
+    </div>
+  );
 });
 
 export default VolumeBarChart;
