@@ -85,6 +85,24 @@ export async function fetchLatestPrice(symbol: string, type: 'spot' | 'futures')
   return parseFloat(data.price);
 }
 
+/**
+ * Latest prices for every symbol in one call — used to short-poll several
+ * tickers at once instead of one request per symbol. This is the REST
+ * fallback for "live" price updates: fstream.binance.com's WebSocket data
+ * plane is silently dropped on some networks (WS upgrade succeeds, no
+ * frames ever arrive) even though this same REST host is reachable.
+ */
+export async function fetchAllLatestPrices(type: 'spot' | 'futures' = 'futures'): Promise<Record<string, number>> {
+  const base = type === 'spot' ? SPOT_BASE : FUTURES_BASE;
+  const path = type === 'spot' ? '/api/v3/ticker/price' : '/fapi/v1/ticker/price';
+  const res = await fetch(`${base}${path}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Binance API error ${res.status}: ${await res.text()}`);
+  const raw: { symbol: string; price: string }[] = await res.json();
+  const out: Record<string, number> = {};
+  for (const t of raw) out[t.symbol] = parseFloat(t.price);
+  return out;
+}
+
 export async function fetchAllKlines(
   symbol: string,
   interval: string,

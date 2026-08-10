@@ -26,9 +26,11 @@ function Pct({ v, className = '' }: { v: number; className?: string }) {
 interface Props {
   entry: LsEntry;
   onDelete: (id: string) => void;
+  /** True once this entry's symbol has received at least one live WS tick. */
+  live?: boolean;
 }
 
-export default function LsEntryCard({ entry, onDelete }: Props) {
+export default function LsEntryCard({ entry, onDelete, live = false }: Props) {
   const isLong = entry.side === 'LONG';
 
   return (
@@ -54,7 +56,8 @@ export default function LsEntryCard({ entry, onDelete }: Props) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {entry.metrics && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 inline-flex items-center gap-1">
+              {live && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden />}
               현재 <span className="text-gray-300 font-mono">{formatPrice(entry.metrics.currentPrice)}</span>
             </span>
           )}
@@ -95,10 +98,18 @@ export default function LsEntryCard({ entry, onDelete }: Props) {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 p-3">
           {CHECKPOINT_LABELS.map(({ key, label }) => {
             const cp = entry.metrics!.checkpoints[key];
+            // "now" is always elapsed (it's the live checkpoint, not a fixed
+            // one) — only 3d/7d/14d/30d actually "confirm" once their target
+            // time has passed, so only those get the highlight border.
+            const confirmed = key !== 'now' && cp.elapsed;
+            const confirmedBorder =
+              cp.returnPct !== null && cp.returnPct >= 0 ? 'border-emerald-500/70' : 'border-red-500/70';
             return (
               <div
                 key={key}
-                className="bg-[#0D1120] border border-[#1F2937] rounded-lg px-2.5 py-2 flex flex-col gap-1"
+                className={`bg-[#0D1120] rounded-lg px-2.5 py-2 flex flex-col gap-1 border ${
+                  confirmed ? confirmedBorder : 'border-[#1F2937]'
+                }`}
               >
                 <span className="text-[10px] text-gray-500 uppercase tracking-wider">{label}</span>
                 {cp.elapsed ? (

@@ -30,7 +30,7 @@ const OFFSETS_MS: Record<Exclude<CheckpointKey, 'now'>, number> = {
 };
 
 // Long profits when price rises, short profits when price falls — mirror the sign.
-function directionalReturn(price: number, entryPrice: number, side: Side): number {
+export function directionalReturn(price: number, entryPrice: number, side: Side): number {
   const raw = ((price - entryPrice) / entryPrice) * 100;
   return side === 'LONG' ? raw : -raw;
 }
@@ -113,6 +113,28 @@ export async function computeLsMetrics(
   };
 
   return { currentPrice, checkpoints };
+}
+
+/**
+ * Reprices the "now" checkpoint from a live WS tick — no network round-trip.
+ * Extends that checkpoint's running best/worst so a live excursion isn't lost
+ * once the REST-computed snapshot is superseded.
+ */
+export function applyLivePrice(metrics: LsMetrics, side: Side, entryPrice: number, livePrice: number): LsMetrics {
+  const liveReturn = directionalReturn(livePrice, entryPrice, side);
+  const now = metrics.checkpoints.now;
+  return {
+    currentPrice: livePrice,
+    checkpoints: {
+      ...metrics.checkpoints,
+      now: {
+        ...now,
+        returnPct: liveReturn,
+        bestPct: Math.max(now.bestPct, liveReturn),
+        worstPct: Math.min(now.worstPct, liveReturn),
+      },
+    },
+  };
 }
 
 /** Snapshot the entry price at write time from the 1m candle covering entryTime. */
