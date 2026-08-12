@@ -12,6 +12,18 @@ enum Side {
   SHORT
 }
 
+// Which leg of a pump the call was made on — optional, for record-keeping
+// and later filtering only; never computed or validated against price action.
+enum PumpPhase {
+  SECOND_LEG_START // 2차 시작
+  THIRD_LEG_START // 3차 시작
+  ADDITIONAL_RISE // 추가 상승
+  TOP_EXPECTED // 고점 예상
+  TOP_REBOUND_THEN_DROP // 고점 반등 이후 하락
+  REBOUND_THEN_DROP // 반등 이후 하락
+  OTHER // 기타
+}
+
 // A single long/short call the user logged for a Binance futures alt.
 // entryPrice is snapshotted at write time from Binance's futures kline
 // covering entryTime, so later reads don't drift if history changes.
@@ -21,8 +33,18 @@ model LongShortEntry {
   side       Side
   entryTime  DateTime
   entryPrice Float
-  note       String?
-  createdAt  DateTime @default(now())
+  // BTCUSDT futures price at entryTime — snapshotted the same way as
+  // entryPrice, so BTC's own checkpoint metrics can be benchmarked alongside
+  // this entry's. Nullable so older rows (and any failed lookup) stay valid;
+  // the read path backfills it lazily on first load.
+  btcPriceAtEntry Float?
+  pumpPhase       PumpPhase?
+  note            String?
+  // When set, this entry is considered closed as of this timestamp: its
+  // checkpoint metrics stop advancing past endedAt instead of tracking the
+  // live price.
+  endedAt   DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([entryTime])
 }

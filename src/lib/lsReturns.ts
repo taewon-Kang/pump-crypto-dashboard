@@ -39,14 +39,19 @@ export function directionalReturn(price: number, entryPrice: number, side: Side)
  * Computes checkpoint returns (+3d/+7d/+14d/+30d/now) plus the best- and
  * worst-case return reachable within each window, from a single Binance
  * futures 1h-kline fetch covering [entryTime, min(now, entryTime+30d)].
+ *
+ * `endTimeMs`, when set, freezes every checkpoint (including "now") at that
+ * timestamp instead of the live clock — used for entries whose tracking has
+ * been ended, so nothing past the end time is reflected.
  */
 export async function computeLsMetrics(
   symbol: string,
   side: Side,
   entryTimeMs: number,
-  entryPrice: number
+  entryPrice: number,
+  endTimeMs?: number | null
 ): Promise<LsMetrics> {
-  const now = Date.now();
+  const now = endTimeMs != null ? Math.min(Date.now(), endTimeMs) : Date.now();
   const rangeEnd = Math.min(now, entryTimeMs + OFFSETS_MS['30d']);
 
   let candles: KlineRaw[] = [];

@@ -1,31 +1,36 @@
 'use client';
 import { useState } from 'react';
-import type { PumpPhase, Side } from '@/types/ls';
+import type { LsEntry, PumpPhase, Side } from '@/types/ls';
 import CoinSelector from '@/components/CoinSelector';
 import SideSelector from '@/components/SideSelector';
 import PumpPhaseSelect from '@/components/PumpPhaseSelect';
 import { toDateTimeLocal } from '@/lib/date';
 
-interface Props {
-  onSubmit: (data: {
-    symbol: string;
-    side: Side;
-    entryTime: number;
-    note: string;
-    pumpPhase: PumpPhase | null;
-  }) => Promise<void>;
+export interface LsEntryEdits {
+  symbol: string;
+  side: Side;
+  entryTime: number;
+  note: string;
+  pumpPhase: PumpPhase | null;
 }
 
-export default function LsEntryForm({ onSubmit }: Props) {
-  const [symbol, setSymbol] = useState('BTCUSDT');
-  const [side, setSide] = useState<Side>('LONG');
-  const [entryDT, setEntryDT] = useState(() => toDateTimeLocal(new Date()));
-  const [note, setNote] = useState('');
-  const [pumpPhase, setPumpPhase] = useState<PumpPhase | null>(null);
+interface Props {
+  entry: LsEntry;
+  onSave: (edits: LsEntryEdits) => Promise<void>;
+  onCancel: () => void;
+}
+
+/** Inline edit form for an existing entry — mirrors LsEntryForm's fields, prefilled. */
+export default function LsEntryEditForm({ entry, onSave, onCancel }: Props) {
+  const [symbol, setSymbol] = useState(entry.symbol);
+  const [side, setSide] = useState<Side>(entry.side);
+  const [entryDT, setEntryDT] = useState(() => toDateTimeLocal(new Date(entry.entryTime)));
+  const [note, setNote] = useState(entry.note ?? '');
+  const [pumpPhase, setPumpPhase] = useState<PumpPhase | null>(entry.pumpPhase);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit() {
+  async function handleSave() {
     if (!entryDT) {
       setError('진입 시각을 선택해주세요.');
       return;
@@ -39,18 +44,15 @@ export default function LsEntryForm({ onSubmit }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit({ symbol, side, entryTime, note, pumpPhase });
-      setNote('');
-      setPumpPhase(null);
+      await onSave({ symbol, side, entryTime, note, pumpPhase });
     } catch (e) {
       setError(e instanceof Error ? e.message : '알 수 없는 오류');
-    } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="bg-[#111827] rounded-xl border border-[#1F2937] p-4 space-y-3">
+    <div className="px-4 py-3 bg-[#0D1120] border-b border-[#1F2937] space-y-3">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">코인</span>
@@ -80,29 +82,34 @@ export default function LsEntryForm({ onSubmit }: Props) {
             type="text"
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="예: 되돌림 이후 진입"
             className="bg-[#111827] border border-[#2D3748] text-gray-100 rounded-lg px-3 py-2 text-sm
                        placeholder-gray-600 focus:outline-none focus:border-blue-500 transition-colors"
           />
         </div>
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500
-                     disabled:opacity-50 disabled:cursor-not-allowed
-                     text-white text-sm font-semibold transition-colors shadow-sm"
-        >
-          {submitting ? (
-            <>
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              기록 중...
-            </>
-          ) : (
-            '기록하기'
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={submitting}
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50
+                       disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors"
+          >
+            {submitting ? '저장 중...' : '저장'}
+          </button>
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="px-4 py-2 rounded-lg bg-[#1F2937] hover:bg-[#2D3748] disabled:opacity-50
+                       text-gray-300 text-sm font-semibold transition-colors"
+          >
+            취소
+          </button>
+        </div>
       </div>
-
+      {(symbol !== entry.symbol || new Date(entryDT).getTime() !== entry.entryTime) && (
+        <p className="text-[11px] text-amber-400/80">
+          ⚠ 코인 또는 진입 시각을 변경하면 진입가/BTC 기준가가 새로 계산됩니다.
+        </p>
+      )}
       {error && <p className="text-xs text-red-400">⚠ {error}</p>}
     </div>
   );
