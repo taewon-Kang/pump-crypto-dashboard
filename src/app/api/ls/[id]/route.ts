@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Side, PumpPhase } from '@/generated/prisma/enums';
 import { computeLsMetrics, resolveEntryPrice } from '@/lib/lsReturns';
+import { generateAndStoreLsChart } from '@/lib/chartSnapshot';
 import type { Prisma } from '@/generated/prisma/client';
 
 export const maxDuration = 30;
@@ -72,6 +73,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    if (body.isRealTrade !== undefined) {
+      if (typeof body.isRealTrade !== 'boolean') {
+        return NextResponse.json({ error: '실제 투자 여부 값이 올바르지 않습니다.' }, { status: 400 });
+      }
+      data.isRealTrade = body.isRealTrade;
+    }
+
     if (body.endedAt !== undefined) {
       if (body.endedAt === null) {
         data.endedAt = null;
@@ -91,9 +99,23 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data.btcPriceAtEntry = btcPriceAtEntry;
     }
 
+    // Symbol/entryTime changes move the whole window; ending or reopening
+    // changes how far the window extends — either way the last snapshot is
+    // stale, so re-capture it. Best-effort, same as on create.
+    const chartRegenNeeded = repriceNeeded || body.endedAt !== undefined;
+
     const updated = await prisma.longShortEntry.update({ where: { id }, data });
     const updatedEntryTimeMs = updated.entryTime.getTime();
     const endTimeMs = updated.endedAt?.getTime() ?? null;
+
+    let chartImageUrl = updated.chartImageUrl;
+    if (chartRegenNeeded) {
+      try {
+        chartImageUrl = await generateAndStoreLsChart(updated);
+      } catch (err) {
+        console.error(`[ls] chart snapshot refresh failed for ${updated.id}:`, err);
+      }
+    }
 
     const [metrics, btcMetrics] = await Promise.all([
       computeLsMetrics(updated.symbol, updated.side, updatedEntryTimeMs, updated.entryPrice, endTimeMs),
@@ -106,6 +128,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       ...updated,
       entryTime: updatedEntryTimeMs,
       endedAt: endTimeMs,
+      chartImageUrl,
       metrics,
       btcMetrics,
       error: null,

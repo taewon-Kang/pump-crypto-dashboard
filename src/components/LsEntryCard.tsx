@@ -81,6 +81,11 @@ export default function LsEntryCard({ entry, onDelete, onEdit, onEnd, onReopen, 
               {phaseLabel}
             </span>
           )}
+          {!entry.isRealTrade && (
+            <span className="text-[11px] text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded-full shrink-0">
+              관점용
+            </span>
+          )}
           {ended && (
             <span className="text-[11px] text-gray-500 bg-[#1F2937] px-2 py-0.5 rounded-full shrink-0">
               종료됨 {formatTime(entry.endedAt!)}
@@ -185,6 +190,21 @@ export default function LsEntryCard({ entry, onDelete, onEdit, onEnd, onReopen, 
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Auto-captured daily-candle chart snapshot around entryTime (see src/lib/chartSnapshot.ts) */}
+      {entry.chartImageUrl && (
+        <div className="px-3 pb-3 pt-1">
+          <a href={entry.chartImageUrl} target="_blank" rel="noopener noreferrer" className="block group">
+            {/* eslint-disable-next-line @next/next/no-img-element -- external Blob-hosted PNG, no need for next/image */}
+            <img
+              src={entry.chartImageUrl}
+              alt={`${entry.symbol} 일봉 차트 스냅샷`}
+              className="w-full rounded-lg border border-[#1F2937] group-hover:border-[#374151] transition-colors"
+              loading="lazy"
+            />
+          </a>
         </div>
       )}
 

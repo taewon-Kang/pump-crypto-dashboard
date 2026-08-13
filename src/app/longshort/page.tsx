@@ -91,6 +91,7 @@ export default function LongShortTrackerPage() {
     entryTime: number;
     note: string;
     pumpPhase: PumpPhase | null;
+    isRealTrade: boolean;
   }) {
     const res = await fetch('/api/ls', {
       method: 'POST',

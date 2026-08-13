@@ -40,11 +40,19 @@ model LongShortEntry {
   btcPriceAtEntry Float?
   pumpPhase       PumpPhase?
   note            String?
+  // Whether this was money actually put on the trade vs. a call logged only
+  // to track a read on the market ("관점용"). Defaults true so existing rows
+  // (all real trades except two backfilled exceptions) stay correct as-is.
+  isRealTrade Boolean @default(true)
   // When set, this entry is considered closed as of this timestamp: its
   // checkpoint metrics stop advancing past endedAt instead of tracking the
   // live price.
   endedAt   DateTime?
   createdAt DateTime  @default(now())
+  // Daily-candle chart screenshot (Vercel Blob URL) auto-captured around
+  // entryTime — the price context the call was made in, plus how it played
+  // out afterward. Null until generated (see src/lib/chartSnapshot.ts).
+  chartImageUrl String?
 
   @@index([entryTime])
 }

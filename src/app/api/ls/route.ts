@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { Side, PumpPhase } from '@/generated/prisma/enums';
 import { computeLsMetrics, resolveEntryPrice } from '@/lib/lsReturns';
+import { generateAndStoreLsChart } from '@/lib/chartSnapshot';
 
 export const maxDuration = 60;
 
@@ -79,6 +80,8 @@ export async function POST(req: NextRequest) {
     const entryTimeMs = Number(body.entryTime);
     const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
     const pumpPhase = typeof body.pumpPhase === 'string' && PUMP_PHASES.has(body.pumpPhase) ? (body.pumpPhase as PumpPhase) : null;
+    // Defaults true (real trade) when omitted, matching the schema default.
+    const isRealTrade = typeof body.isRealTrade === 'boolean' ? body.isRealTrade : true;
 
     if (!symbol || !side || !Number.isFinite(entryTimeMs)) {
       return NextResponse.json({ error: '심볼/방향/진입 시각을 확인해주세요.' }, { status: 400 });
@@ -99,6 +102,7 @@ export async function POST(req: NextRequest) {
         btcPriceAtEntry,
         pumpPhase,
         note,
+        isRealTrade,
       },
     });
 
@@ -107,10 +111,21 @@ export async function POST(req: NextRequest) {
       computeLsMetrics('BTCUSDT', Side.LONG, entryTimeMs, btcPriceAtEntry),
     ]);
 
+    // Auto-capture the daily-candle chart for this call. Best-effort: a
+    // brand-new listing without enough candle history (or a transient
+    // Blob/Binance hiccup) shouldn't fail the entry creation itself.
+    let chartImageUrl: string | null = null;
+    try {
+      chartImageUrl = await generateAndStoreLsChart(entry);
+    } catch (err) {
+      console.error(`[ls] chart snapshot failed for ${entry.id}:`, err);
+    }
+
     return NextResponse.json({
       ...entry,
       entryTime: entry.entryTime.getTime(),
       endedAt: null,
+      chartImageUrl,
       metrics,
       btcMetrics,
       error: null,

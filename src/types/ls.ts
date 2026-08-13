@@ -52,6 +52,10 @@ export interface LsEntry {
   /** Set once tracking for this entry has been ended — metrics freeze as of this time. */
   endedAt: number | null;
   createdAt: string;
+  /** Daily-candle chart screenshot (Vercel Blob URL) captured around entryTime. Null until generated. */
+  chartImageUrl: string | null;
+  /** True for a call backed by real money; false for a call logged only to track a read on the market. */
+  isRealTrade: boolean;
   metrics: LsMetrics | null;
   /** BTC's own checkpoint metrics over the same window, from btcPriceAtEntry. Null until backfilled. */
   btcMetrics: LsMetrics | null;

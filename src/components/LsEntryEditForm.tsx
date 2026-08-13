@@ -4,6 +4,7 @@ import type { LsEntry, PumpPhase, Side } from '@/types/ls';
 import CoinSelector from '@/components/CoinSelector';
 import SideSelector from '@/components/SideSelector';
 import PumpPhaseSelect from '@/components/PumpPhaseSelect';
+import RealTradeSelect from '@/components/RealTradeSelect';
 import { toDateTimeLocal } from '@/lib/date';
 
 export interface LsEntryEdits {
@@ -12,6 +13,7 @@ export interface LsEntryEdits {
   entryTime: number;
   note: string;
   pumpPhase: PumpPhase | null;
+  isRealTrade: boolean;
 }
 
 interface Props {
@@ -27,6 +29,7 @@ export default function LsEntryEditForm({ entry, onSave, onCancel }: Props) {
   const [entryDT, setEntryDT] = useState(() => toDateTimeLocal(new Date(entry.entryTime)));
   const [note, setNote] = useState(entry.note ?? '');
   const [pumpPhase, setPumpPhase] = useState<PumpPhase | null>(entry.pumpPhase);
+  const [isRealTrade, setIsRealTrade] = useState(entry.isRealTrade);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +47,7 @@ export default function LsEntryEditForm({ entry, onSave, onCancel }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      await onSave({ symbol, side, entryTime, note, pumpPhase });
+      await onSave({ symbol, side, entryTime, note, pumpPhase, isRealTrade });
     } catch (e) {
       setError(e instanceof Error ? e.message : '알 수 없는 오류');
       setSubmitting(false);
@@ -75,6 +78,10 @@ export default function LsEntryEditForm({ entry, onSave, onCancel }: Props) {
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">펌핑 단계 (선택)</span>
           <PumpPhaseSelect value={pumpPhase} onChange={setPumpPhase} />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">투자 여부</span>
+          <RealTradeSelect value={isRealTrade} onChange={setIsRealTrade} />
         </div>
         <div className="flex flex-col gap-0.5 flex-[2] min-w-[180px]">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">메모 (선택)</span>

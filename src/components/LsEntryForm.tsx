@@ -4,6 +4,7 @@ import type { PumpPhase, Side } from '@/types/ls';
 import CoinSelector from '@/components/CoinSelector';
 import SideSelector from '@/components/SideSelector';
 import PumpPhaseSelect from '@/components/PumpPhaseSelect';
+import RealTradeSelect from '@/components/RealTradeSelect';
 import { toDateTimeLocal } from '@/lib/date';
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
     entryTime: number;
     note: string;
     pumpPhase: PumpPhase | null;
+    isRealTrade: boolean;
   }) => Promise<void>;
 }
 
@@ -22,6 +24,7 @@ export default function LsEntryForm({ onSubmit }: Props) {
   const [entryDT, setEntryDT] = useState(() => toDateTimeLocal(new Date()));
   const [note, setNote] = useState('');
   const [pumpPhase, setPumpPhase] = useState<PumpPhase | null>(null);
+  const [isRealTrade, setIsRealTrade] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +42,7 @@ export default function LsEntryForm({ onSubmit }: Props) {
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit({ symbol, side, entryTime, note, pumpPhase });
+      await onSubmit({ symbol, side, entryTime, note, pumpPhase, isRealTrade });
       setNote('');
       setPumpPhase(null);
     } catch (e) {
@@ -73,6 +76,10 @@ export default function LsEntryForm({ onSubmit }: Props) {
         <div className="flex flex-col gap-0.5">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">펌핑 단계 (선택)</span>
           <PumpPhaseSelect value={pumpPhase} onChange={setPumpPhase} />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">투자 여부</span>
+          <RealTradeSelect value={isRealTrade} onChange={setIsRealTrade} />
         </div>
         <div className="flex flex-col gap-0.5 flex-[2] min-w-[180px]">
           <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">메모 (선택)</span>

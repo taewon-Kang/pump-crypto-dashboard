@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { label: 'Volume Gap', href: '/' },
   { label: 'Alt Performance', href: '/alt-performance' },
   { label: 'L/S Tracker', href: '/longshort' },
+  { label: '통계', href: '/statistics' },
 ];
 
 export default function Navigation() {
