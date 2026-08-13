@@ -37,6 +37,7 @@ interface Props {
 
 export default function LsEntryCard({ entry, onDelete, onEdit, onEnd, onReopen, live = false }: Props) {
   const [editing, setEditing] = useState(false);
+  const [showChart, setShowChart] = useState(false);
   const isLong = entry.side === 'LONG';
   const ended = entry.endedAt !== null;
   const phaseLabel = pumpPhaseLabel(entry.pumpPhase);
@@ -98,6 +99,25 @@ export default function LsEntryCard({ entry, onDelete, onEdit, onEnd, onReopen, 
               {live && !ended && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden />}
               {ended ? '종료 시점' : '현재'} <span className="text-gray-300 font-mono">{formatPrice(entry.metrics.currentPrice)}</span>
             </span>
+          )}
+          {entry.chartImageUrl && (
+            <button
+              onClick={() => setShowChart((v) => !v)}
+              aria-label={showChart ? '차트 스냅샷 숨기기' : '차트 스냅샷 보기'}
+              aria-pressed={showChart}
+              className={`p-1.5 rounded-md transition-colors ${
+                showChart ? 'text-blue-400 bg-blue-900/30' : 'text-gray-500 hover:text-blue-400 hover:bg-[#1F2937]'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 16l5-6 4 4 5-7 4 5M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"
+                />
+              </svg>
+            </button>
           )}
           <button
             onClick={() => setEditing(true)}
@@ -193,8 +213,8 @@ export default function LsEntryCard({ entry, onDelete, onEdit, onEnd, onReopen, 
         </div>
       )}
 
-      {/* Auto-captured daily-candle chart snapshot around entryTime (see src/lib/chartSnapshot.ts) */}
-      {entry.chartImageUrl && (
+      {/* Auto-captured daily-candle chart snapshot around entryTime (see src/lib/chartSnapshot.ts) — collapsed by default, toggled via the header button */}
+      {showChart && entry.chartImageUrl && (
         <div className="px-3 pb-3 pt-1">
           <a href={entry.chartImageUrl} target="_blank" rel="noopener noreferrer" className="block group">
             {/* eslint-disable-next-line @next/next/no-img-element -- external Blob-hosted PNG, no need for next/image */}

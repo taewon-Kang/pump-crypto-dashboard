@@ -10,11 +10,18 @@ import { applyLivePrice } from '@/lib/lsReturns';
 import type { LsEntryEdits } from '@/components/LsEntryEditForm';
 
 type ActiveFilter = 'active' | 'ended' | 'all';
+type InvestFilter = 'ALL' | 'REAL' | 'WATCH';
 
 const ACTIVE_FILTERS: { key: ActiveFilter; label: string }[] = [
   { key: 'active', label: '진행중' },
   { key: 'ended', label: '종료됨' },
   { key: 'all', label: '전체' },
+];
+
+const INVEST_FILTERS: { key: InvestFilter; label: string }[] = [
+  { key: 'ALL', label: '전체' },
+  { key: 'REAL', label: '실제 투자' },
+  { key: 'WATCH', label: '관점용' },
 ];
 
 export default function LongShortTrackerPage() {
@@ -23,6 +30,7 @@ export default function LongShortTrackerPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>('all');
   const [phaseFilter, setPhaseFilter] = useState<PumpPhase | 'ALL'>('ALL');
+  const [investFilter, setInvestFilter] = useState<InvestFilter>('ALL');
 
   // Ended entries no longer track the live price, so they don't need polling.
   const symbols = useMemo(() => entries.filter((e) => e.endedAt === null).map((e) => e.symbol), [entries]);
@@ -56,9 +64,11 @@ export default function LongShortTrackerPage() {
         if (activeFilter === 'active' && e.endedAt !== null) return false;
         if (activeFilter === 'ended' && e.endedAt === null) return false;
         if (phaseFilter !== 'ALL' && e.pumpPhase !== phaseFilter) return false;
+        if (investFilter === 'REAL' && !e.isRealTrade) return false;
+        if (investFilter === 'WATCH' && e.isRealTrade) return false;
         return true;
       }),
-    [liveEntries, activeFilter, phaseFilter]
+    [liveEntries, activeFilter, phaseFilter, investFilter]
   );
 
   const activeCount = useMemo(() => entries.filter((e) => e.endedAt === null).length, [entries]);
@@ -211,19 +221,33 @@ export default function LongShortTrackerPage() {
                 </button>
               ))}
             </div>
-            <select
-              value={phaseFilter}
-              onChange={(e) => setPhaseFilter(e.target.value as PumpPhase | 'ALL')}
-              className="bg-[#111827] border border-[#1F2937] text-gray-300 rounded-lg px-2.5 py-1.5 text-xs
-                         focus:outline-none focus:border-blue-500 transition-colors"
-            >
-              <option value="ALL">펌핑 단계: 전체</option>
-              {PUMP_PHASE_LABELS.map(({ key, label }) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={investFilter}
+                onChange={(e) => setInvestFilter(e.target.value as InvestFilter)}
+                className="bg-[#111827] border border-[#1F2937] text-gray-300 rounded-lg px-2.5 py-1.5 text-xs
+                           focus:outline-none focus:border-blue-500 transition-colors"
+              >
+                {INVEST_FILTERS.map(({ key, label }) => (
+                  <option key={key} value={key}>
+                    투자 여부: {label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={phaseFilter}
+                onChange={(e) => setPhaseFilter(e.target.value as PumpPhase | 'ALL')}
+                className="bg-[#111827] border border-[#1F2937] text-gray-300 rounded-lg px-2.5 py-1.5 text-xs
+                           focus:outline-none focus:border-blue-500 transition-colors"
+              >
+                <option value="ALL">펌핑 단계: 전체</option>
+                {PUMP_PHASE_LABELS.map(({ key, label }) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {visibleEntries.length === 0 ? (
