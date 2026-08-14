@@ -54,5 +54,153 @@ model LongShortEntry {
   // out afterward. Null until generated (see src/lib/chartSnapshot.ts).
   chartImageUrl String?
 
+  // Manually-linked real Binance position(s) synced from the account's own
+  // trade history (see BinancePosition below). Optional, user-set — never
+  // inferred automatically, so a wrong auto-match can't silently attach.
+  binancePositions BinancePosition[]
+
   @@index([entryTime])
+}
+
+enum BinancePositionStatus {
+  OPEN
+  CLOSED
+}
+
+enum FillEventType {
+  ENTRY // opened the position from flat
+  ADD // increased an already-open position in the same direction
+  PARTIAL_TP // reduced the position without flattening it
+  CLOSE // reduced the position down to flat
+}
+
+// A real position on the user's Binance USDT-M Futures account, rebuilt by
+// grouping consecutive same-symbol/same-direction fills (see
+// src/lib/binancePositionEngine.ts). This is the "trade_id" anchor: its `id`
+// is stable across incremental re-syncs, and it can optionally be linked to
+// a manually-logged LongShortEntry via linkedLsEntryId. Read-only mirror of
+// exchange data — nothing here is ever written back to Binance.
+model BinancePosition {
+  id     String                @id @default(cuid())
+  symbol String
+  side   Side // LONG or SHORT: the position's direction (Binance positionSide in hedge mode, or the inferred net direction in one-way mode)
+  status BinancePositionStatus @default(OPEN)
+
+  openedAt DateTime
+  closedAt DateTime?
+
+  // Weighted-average bookkeeping. avgEntryPrice = entryNotional / entryQty;
+  // avgExitPrice = exitNotional / exitQty (0 while nothing has been closed
+  // yet). Kept as running sums rather than a recomputed average so
+  // incremental syncs can just add to them.
+  entryQty      Float @default(0)
+  entryNotional Float @default(0)
+  exitQty       Float @default(0)
+  exitNotional  Float @default(0)
+
+  // Sum of Binance-reported realizedPnl / commission across every fill in
+  // this position — the actual, exchange-computed trading result. Never
+  // touched by post-close price tracking (see PostCloseObservation).
+  realizedPnl     Float   @default(0)
+  commission      Float   @default(0)
+  commissionAsset String?
+
+  // Best-effort snapshot of the symbol's leverage setting, taken the first
+  // time this position is created. Binance does not expose historical
+  // per-trade leverage, so this can be stale if the user changed leverage
+  // mid-position before the first sync observed it.
+  leverage Int?
+
+  // Optional manual link to a hand-logged L/S Tracker call. Never inferred
+  // automatically — set only through the UI.
+  linkedLsEntryId String?
+  linkedLsEntry   LongShortEntry? @relation(fields: [linkedLsEntryId], references: [id], onDelete: SetNull)
+
+  fills        BinanceFill[]
+  observations PostCloseObservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([symbol, status])
+  @@index([openedAt])
+}
+
+// One raw execution/fill pulled from Binance Futures GET /fapi/v1/userTrades
+// — one row per actual match, not per order. Pure read-only mirror of
+// exchange data, kept even after grouping so the position math is always
+// auditable back to source rows.
+model BinanceFill {
+  id             String @id @default(cuid())
+  symbol         String
+  binanceTradeId BigInt
+  orderId        BigInt
+
+  side         String // BUY | SELL, as reported by Binance
+  positionSide String // LONG | SHORT | BOTH (BOTH = one-way mode)
+
+  price    Float
+  qty      Float
+  quoteQty Float
+
+  realizedPnl     Float
+  commission      Float
+  commissionAsset String
+  isMaker         Boolean
+  time            DateTime
+
+  // Assigned by the grouping engine once this fill has been processed; null
+  // briefly between ingestion and grouping.
+  eventType  FillEventType?
+  positionId String?
+  position   BinancePosition? @relation(fields: [positionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([symbol, binanceTradeId])
+  @@index([positionId])
+  @@index([symbol, time])
+}
+
+// Price snapshots taken AFTER a position closed, at the same 3d/7d/14d/30d
+// checkpoints the manual L/S Tracker uses. Deliberately a separate table
+// from BinancePosition's realizedPnl/commission so "what the price did
+// afterward" can never leak into or be confused with actual trading
+// performance.
+model PostCloseObservation {
+  id         String          @id @default(cuid())
+  positionId String
+  position   BinancePosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+
+  checkpoint String // "3d" | "7d" | "14d" | "30d"
+  observedAt DateTime
+  price      Float
+  // Directional return vs. the position's avgExitPrice — how the price
+  // moved after the user actually got out, not a trading result.
+  returnPct Float
+
+  createdAt DateTime @default(now())
+
+  @@unique([positionId, checkpoint])
+}
+
+// Per-symbol pagination cursor for incremental Binance userTrades sync —
+// lets each sync run resume from the last processed trade id instead of
+// re-fetching full history.
+model BinanceSyncCursor {
+  symbol       String    @id
+  lastTradeId  BigInt    @default(0)
+  lastSyncedAt DateTime?
+  updatedAt    DateTime  @updatedAt
+}
+
+// Singleton bookkeeping row (id is always 1) for the sync job itself — last
+// run time/status, and a simple lock so overlapping manual + cron triggers
+// don't hammer Binance's rate limits at the same time.
+model BinanceSyncMeta {
+  id            Int       @id @default(1)
+  lastRunAt     DateTime?
+  lastRunStatus String? // "ok" | "error"
+  lastError     String?
+  updatedAt     DateTime  @updatedAt
 }

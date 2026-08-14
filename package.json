@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
-    "backfill:ls-charts": "tsx scripts/backfill-ls-charts.ts"
+    "backfill:ls-charts": "tsx scripts/backfill-ls-charts.ts",
+    "sync:binance": "tsx scripts/sync-binance.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.5",
