@@ -33,6 +33,8 @@ export interface BinancePositionDto {
   avgExitPrice: number | null;
   entryQty: number;
   exitQty: number;
+  /** Total position size ever entered, in USDT (sum of qty*price across entry fills) — not a coin count. */
+  entryNotional: number;
   realizedPnl: number;
   commission: number;
   commissionAsset: string | null;

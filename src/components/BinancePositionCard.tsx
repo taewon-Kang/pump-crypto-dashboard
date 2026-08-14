@@ -14,6 +14,10 @@ function formatTime(ms: number): string {
   });
 }
 
+function formatUsdt(v: number): string {
+  return `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`;
+}
+
 function formatDuration(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
@@ -61,6 +65,8 @@ export default function BinancePositionCard({ position: p, lsOptions, onLink }: 
   const [linking, setLinking] = useState(false);
   const isLong = p.side === 'LONG';
   const isOpen = p.status === 'OPEN';
+  const openQty = Math.max(0, p.entryQty - p.exitQty);
+  const isFullyClosed = openQty < 1e-9;
 
   const candidates = lsOptions.filter((e) => e.symbol === p.symbol && e.isRealTrade);
 
@@ -116,7 +122,10 @@ export default function BinancePositionCard({ position: p, lsOptions, onLink }: 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
         <Stat label="평단 진입가" value={formatPrice(p.avgEntryPrice)} />
         <Stat label="평단 청산가" value={p.avgExitPrice !== null ? formatPrice(p.avgExitPrice) : '—'} />
-        <Stat label="포지션 크기" value={`${p.entryQty} (${(p.entryQty - p.exitQty).toFixed(6)} 보유중)`} />
+        <Stat label="포지션 크기" value={formatUsdt(p.entryNotional)} />
+        {isOpen && !isFullyClosed && (
+          <Stat label="보유중" value={formatUsdt(openQty * (p.currentPrice ?? p.avgEntryPrice))} />
+        )}
         <Stat label="보유 시간" value={formatDuration(p.holdingSeconds)} />
         {isOpen && p.unrealizedPnl !== null && (
           <Stat label="미실현손익(추정)" value={<Signed v={p.unrealizedPnl} unit=" USDT" />} />

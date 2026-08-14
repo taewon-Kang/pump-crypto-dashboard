@@ -46,6 +46,7 @@ export async function GET() {
         avgExitPrice,
         entryQty: p.entryQty,
         exitQty: p.exitQty,
+        entryNotional: p.entryNotional,
         realizedPnl: p.realizedPnl,
         commission: p.commission,
         commissionAsset: p.commissionAsset,
