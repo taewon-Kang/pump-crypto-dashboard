@@ -133,6 +133,67 @@ export async function fetchPositionMode(): Promise<boolean> {
   return res.dualSidePosition;
 }
 
+export interface BinanceBalanceRow {
+  asset: string;
+  balance: number;
+  availableBalance: number;
+  crossUnPnl: number;
+}
+
+/** GET /fapi/v2/balance — wallet balance per asset on the USDT-M futures account. */
+export async function fetchFuturesBalances(): Promise<BinanceBalanceRow[]> {
+  const res = await signedGet<
+    { asset: string; balance: string; availableBalance: string; crossUnPnl: string }[]
+  >('/fapi/v2/balance');
+  return res.map((r) => ({
+    asset: r.asset,
+    balance: parseFloat(r.balance),
+    availableBalance: parseFloat(r.availableBalance),
+    crossUnPnl: parseFloat(r.crossUnPnl),
+  }));
+}
+
+/** Convenience wrapper: just the USDT row, since the account only trades USDT-M pairs. */
+export async function fetchUsdtBalance(): Promise<BinanceBalanceRow | null> {
+  const rows = await fetchFuturesBalances();
+  return rows.find((r) => r.asset === 'USDT') ?? null;
+}
+
+export interface BinanceAccountSummary {
+  /** Wallet balance only — deposits/withdrawals/realized PnL, excludes open positions' unrealized PnL. */
+  totalWalletBalance: number;
+  /** Unrealized PnL across every open position, cross AND isolated margin alike. */
+  totalUnrealizedProfit: number;
+  /** totalWalletBalance + totalUnrealizedProfit — this is the number Binance's app shows as account/futures "total". */
+  totalMarginBalance: number;
+  availableBalance: number;
+}
+
+/**
+ * GET /fapi/v2/account — account-wide totals in USDT.
+ *
+ * /fapi/v2/balance's per-asset `balance` only reflects wallet balance; for
+ * ISOLATED-margin positions their unrealized PnL never lands in `balance` or
+ * `crossUnPnl`, so summing balances alone undercounts the account by however
+ * much is unrealized on open isolated positions. This endpoint's
+ * totalMarginBalance already folds in unrealized PnL from both cross and
+ * isolated positions, matching the "총 자산" figure shown in Binance's app.
+ */
+export async function fetchFuturesAccountSummary(): Promise<BinanceAccountSummary> {
+  const res = await signedGet<{
+    totalWalletBalance: string;
+    totalUnrealizedProfit: string;
+    totalMarginBalance: string;
+    availableBalance: string;
+  }>('/fapi/v2/account');
+  return {
+    totalWalletBalance: parseFloat(res.totalWalletBalance),
+    totalUnrealizedProfit: parseFloat(res.totalUnrealizedProfit),
+    totalMarginBalance: parseFloat(res.totalMarginBalance),
+    availableBalance: parseFloat(res.availableBalance),
+  };
+}
+
 /** GET /fapi/v2/positionRisk — best-effort current leverage setting for a symbol. */
 export async function fetchSymbolLeverage(symbol: string): Promise<number | null> {
   try {

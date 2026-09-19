@@ -38,7 +38,10 @@ export async function GET(req: NextRequest) {
       });
 
     return NextResponse.json(merged, {
-      headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60' },
+      // Kept short: this response includes the still-forming candle, so a
+      // long CDN TTL directly shows up as stale price/volume data on the
+      // homepage. See fetchKlines() in lib/binance.ts for the related fix.
+      headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=30' },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';

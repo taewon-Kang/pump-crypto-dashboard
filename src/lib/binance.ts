@@ -22,7 +22,15 @@ export async function fetchKlines(
   let url = `${base}${path}?symbol=${symbol}&interval=${interval}&limit=${limit}`;
   if (endTime) url += `&endTime=${endTime}`;
 
-  const res = await fetch(url, { next: { revalidate: 300 } });
+  // No endTime means "the most recent candles" — that response changes every
+  // time a new candle opens, so it must never be served from Next's Data
+  // Cache. A time-based `next.revalidate` cache serves the *previous* stale
+  // value to whichever request finally lands after the window expires, and
+  // then revalidates in the background for the *next* one — on a low-traffic
+  // page that request may not come for hours, so the site shows candles that
+  // are hours or days old. An explicit endTime, by contrast, always points at
+  // already-closed (immutable) candles, which are safe to cache.
+  const res = await fetch(url, endTime ? { next: { revalidate: 300 } } : { cache: 'no-store' });
 
   if (!res.ok) {
     throw new Error(`Binance API error ${res.status}: ${await res.text()}`);

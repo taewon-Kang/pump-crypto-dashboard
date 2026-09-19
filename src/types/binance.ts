@@ -54,9 +54,21 @@ export interface BinanceSyncStatus {
   lastError: string | null;
 }
 
+export interface BinanceBalanceDto {
+  /** Wallet balance only (excludes open positions' unrealized PnL). */
+  totalWalletBalance: number;
+  /** Unrealized PnL across all open positions, cross and isolated alike. */
+  totalUnrealizedProfit: number;
+  /** totalWalletBalance + totalUnrealizedProfit — matches Binance app's "총 자산". */
+  totalMarginBalance: number;
+  availableBalance: number;
+}
+
 export interface BinancePositionsResponse {
   positions: BinancePositionDto[];
   sync: BinanceSyncStatus;
+  /** Current USDT-M futures account balance summary. Null if the read failed (e.g. API keys not configured). */
+  balance: BinanceBalanceDto | null;
 }
 
 export interface BinanceSyncSummary {

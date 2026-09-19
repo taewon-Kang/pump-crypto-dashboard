@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { fetchAllLatestPrices } from '@/lib/binance';
-import type { BinancePositionDto, BinancePositionsResponse } from '@/types/binance';
+import { fetchFuturesAccountSummary } from '@/lib/binanceAccount';
+import type { BinanceBalanceDto, BinancePositionDto, BinancePositionsResponse } from '@/types/binance';
 
 export async function GET() {
   try {
-    const [positions, meta] = await Promise.all([
+    const [positions, meta, balance] = await Promise.all([
       prisma.binancePosition.findMany({
         orderBy: { openedAt: 'desc' },
         include: {
@@ -15,6 +16,9 @@ export async function GET() {
         },
       }),
       prisma.binanceSyncMeta.findUnique({ where: { id: 1 } }),
+      // Best-effort: a balance read failure (e.g. keys not configured yet)
+      // shouldn't take down the whole positions page.
+      fetchFuturesAccountSummary().catch((): BinanceBalanceDto | null => null),
     ]);
 
     const openSymbols = [...new Set(positions.filter((p) => p.status === 'OPEN').map((p) => p.symbol))];
@@ -93,6 +97,7 @@ export async function GET() {
         lastRunStatus: meta?.lastRunStatus ?? null,
         lastError: meta?.lastError ?? null,
       },
+      balance,
     };
 
     return NextResponse.json(body, { headers: { 'Cache-Control': 'private, no-store' } });

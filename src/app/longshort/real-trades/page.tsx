@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react';
-import type { BinancePositionDto, BinancePositionsResponse, BinanceSyncSummary } from '@/types/binance';
+import type { BinanceBalanceDto, BinancePositionDto, BinancePositionsResponse, BinanceSyncSummary } from '@/types/binance';
 import type { LsEntry } from '@/types/ls';
 import LoadingDots from '@/components/LoadingDots';
 import BinancePositionCard from '@/components/BinancePositionCard';
@@ -22,6 +22,7 @@ export default function RealTradesPage() {
   const [positions, setPositions] = useState<BinancePositionDto[]>([]);
   const [lsOptions, setLsOptions] = useState<LsEntry[]>([]);
   const [syncStatus, setSyncStatus] = useState<BinancePositionsResponse['sync'] | null>(null);
+  const [balance, setBalance] = useState<BinanceBalanceDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export default function RealTradesPage() {
       const posData: BinancePositionsResponse = await posRes.json();
       setPositions(posData.positions);
       setSyncStatus(posData.sync);
+      setBalance(posData.balance);
       if (lsRes.ok) setLsOptions(await lsRes.json());
     } catch (e) {
       setError(e instanceof Error ? e.message : '알 수 없는 오류');
@@ -123,6 +125,26 @@ export default function RealTradesPage() {
           )}
         </div>
       </div>
+
+      {balance && (
+        <div className="bg-[#111827] rounded-xl border border-[#1F2937] px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <span className="text-xs text-gray-500">USDT 총 자산 (지갑잔고 + 미실현 손익, 바이낸스 앱 오버뷰와 동일 기준)</span>
+          <div className="flex items-baseline gap-3">
+            <span className="text-lg font-bold font-mono tabular-nums text-gray-100">
+              {balance.totalMarginBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
+            </span>
+            <span className="text-xs text-gray-500 font-mono tabular-nums">
+              지갑 {balance.totalWalletBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="text-xs text-gray-500">
+              미실현 <Signed v={balance.totalUnrealizedProfit} className="text-xs" />
+            </span>
+            <span className="text-xs text-gray-500 font-mono tabular-nums">
+              가용 {balance.availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-900/20 border border-red-800/50 rounded-xl px-4 py-3 text-red-400 text-sm">⚠ {error}</div>
