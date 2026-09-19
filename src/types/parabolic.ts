@@ -23,7 +23,7 @@ export interface ParabolicPoint {
 
 export type ParabolicPoints = Record<RequiredPointKey, ParabolicPoint> & { l4: ParabolicPoint | null };
 
-export const TIMEFRAME_OPTIONS = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '12h', '1d'] as const;
+export const TIMEFRAME_OPTIONS = ['30m', '1h', '4h', '1d', '1w'] as const;
 export type Timeframe = (typeof TIMEFRAME_OPTIONS)[number];
 
 export interface LegMetric {
