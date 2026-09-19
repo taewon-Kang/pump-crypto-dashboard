@@ -37,10 +37,12 @@ export default function ParabolicChartPicker({ symbol, timeframe, points, active
 
   const [candles, setCandles] = useState<KlineRaw[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hoverInfo, setHoverInfo] = useState<string | null>(null);
 
+  // Loads the coin's full futures kline history for this timeframe (paginated
+  // back to its earliest listed candle), same as the home Volume Gap chart —
+  // not just the most recent page — so old structures aren't cut off.
   const load = useCallback(async (sym: string, tf: string) => {
     setLoading(true);
     setError(null);
@@ -60,24 +62,6 @@ export default function ParabolicChartPicker({ symbol, timeframe, points, active
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load(symbol, timeframe);
   }, [symbol, timeframe, load]);
-
-  async function loadEarlier() {
-    if (!candles.length || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const endTime = candles[0].timestamp - 1;
-      const res = await fetch(
-        `/api/parabolic/klines?${new URLSearchParams({ symbol, interval: timeframe, endTime: String(endTime) })}`
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: KlineRaw[] = await res.json();
-      if (data.length) setCandles((cur) => [...data, ...cur]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '이전 캔들을 불러오지 못했습니다.');
-    } finally {
-      setLoadingMore(false);
-    }
-  }
 
   // Chart lifecycle — created once per mount.
   useEffect(() => {
@@ -192,13 +176,11 @@ export default function ParabolicChartPicker({ symbol, timeframe, points, active
           <span className="text-blue-400 font-semibold">{POINT_LABELS[activeKey]}</span> 지정 중 — 캔들을 클릭하면{' '}
           {HIGH_KEYS.has(activeKey) ? '고가' : '저가'}로 자동 입력됩니다
         </span>
-        <button
-          onClick={loadEarlier}
-          disabled={loading || loadingMore || !candles.length}
-          className="text-[11px] text-gray-500 hover:text-gray-300 disabled:opacity-40 transition-colors shrink-0"
-        >
-          {loadingMore ? '불러오는 중...' : '← 이전 캔들 더 보기'}
-        </button>
+        {candles.length > 0 && (
+          <span className="text-[11px] text-gray-600 shrink-0">
+            {formatLegendTime(Math.floor(candles[0].timestamp / 1000))} ~ (스크롤로 확대/이동)
+          </span>
+        )}
       </div>
       <div className="relative w-full h-[420px] bg-[#111827] rounded-lg border border-[#1F2937] overflow-hidden">
         <div ref={containerRef} className="w-full h-full" />
@@ -209,7 +191,7 @@ export default function ParabolicChartPicker({ symbol, timeframe, points, active
         )}
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 bg-[#111827]/70">
-            차트를 불러오는 중...
+            전체 차트 기록을 불러오는 중...
           </div>
         )}
         {error && (
