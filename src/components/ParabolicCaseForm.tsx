@@ -66,10 +66,10 @@ export default function ParabolicCaseForm({ onSubmit }: Props) {
   const [baseLow, setBaseLow] = useState<ParabolicPoint | null>(null);
   const [parabolicStart, setParabolicStart] = useState<ParabolicPoint | null>(null);
   const [activeKey, setActiveKey] = useState<AnyPointKey>('l0');
-  const [slopeCount, setSlopeCount] = useState('');
-  const [shapeType, setShapeType] = useState<ShapeType | null>(null);
-  const [thirdWaveOccurred, setThirdWaveOccurred] = useState<boolean | null>(null);
-  const [finalTopYn, setFinalTopYn] = useState<boolean | null>(null);
+  const [slopeCount, setSlopeCount] = useState('3');
+  const [shapeType, setShapeType] = useState<ShapeType | null>('LINEAR');
+  const [thirdWaveOccurred, setThirdWaveOccurred] = useState<boolean | null>(true);
+  const [finalTopYn, setFinalTopYn] = useState<boolean | null>(true);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,10 +142,10 @@ export default function ParabolicCaseForm({ onSubmit }: Props) {
         notes: notes.trim() || null,
       });
       resetPoints();
-      setSlopeCount('');
-      setShapeType(null);
-      setThirdWaveOccurred(null);
-      setFinalTopYn(null);
+      setSlopeCount('3');
+      setShapeType('LINEAR');
+      setThirdWaveOccurred(true);
+      setFinalTopYn(true);
       setNotes('');
     } catch (e) {
       setError(e instanceof Error ? e.message : '알 수 없는 오류');
