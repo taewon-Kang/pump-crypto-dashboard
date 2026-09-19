@@ -1,13 +1,21 @@
 'use client';
 import { toDateTimeLocal } from '@/lib/date';
 import { formatPrice } from '@/lib/format';
-import { POINT_KEYS, POINT_LABELS, REQUIRED_POINT_KEYS, type ParabolicPoint, type ParabolicPoints, type PointKey } from '@/types/parabolic';
+import {
+  ALL_POINT_LABELS,
+  EXTRA_POINT_KEYS,
+  POINT_KEYS,
+  REQUIRED_POINT_KEYS,
+  type AnyPointKey,
+  type ParabolicPoint,
+  type PointKey,
+} from '@/types/parabolic';
 
 interface Props {
-  points: ParabolicPoints;
-  activeKey: PointKey;
-  onActiveKeyChange: (key: PointKey) => void;
-  onManualChange: (key: PointKey, point: ParabolicPoint | null) => void;
+  points: Partial<Record<AnyPointKey, ParabolicPoint | null>>;
+  activeKey: AnyPointKey;
+  onActiveKeyChange: (key: AnyPointKey) => void;
+  onManualChange: (key: AnyPointKey, point: ParabolicPoint | null) => void;
 }
 
 export default function ParabolicPointsToolbar({ points, activeKey, onActiveKeyChange, onManualChange }: Props) {
@@ -67,9 +75,35 @@ export default function ParabolicPointsToolbar({ points, activeKey, onActiveKeyC
         })}
       </div>
 
+      {/* Extra shape-context points — independent of the core structure/legs, purely for later comparison */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {EXTRA_POINT_KEYS.map((key) => {
+          const p = points[key];
+          const isActive = key === activeKey;
+          return (
+            <button
+              key={key}
+              onClick={() => onActiveKeyChange(key)}
+              className={`flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1.5 border text-center transition-colors ${
+                isActive
+                  ? 'bg-purple-600/20 border-purple-500 text-purple-300'
+                  : p
+                    ? 'bg-[#111827] border-purple-900/40 text-gray-300 hover:border-purple-700/60'
+                    : 'bg-[#111827] border-[#1F2937]/60 text-gray-600 hover:border-purple-700/60'
+              }`}
+            >
+              <span className="text-[11px] font-bold tracking-wide">{ALL_POINT_LABELS[key]}</span>
+              <span className="text-[10px] font-mono tabular-nums leading-none">
+                {p ? formatPrice(p.price) : '미지정'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="flex flex-wrap items-end gap-3 bg-[#0D1120] border border-[#1F2937] rounded-lg px-3 py-2.5">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">{POINT_LABELS[activeKey]} 시각</span>
+          <span className="text-[10px] text-gray-500 uppercase tracking-wider pl-0.5">{ALL_POINT_LABELS[activeKey]} 시각</span>
           <input
             type="datetime-local"
             value={activePoint ? toDateTimeLocal(new Date(activePoint.time)) : ''}

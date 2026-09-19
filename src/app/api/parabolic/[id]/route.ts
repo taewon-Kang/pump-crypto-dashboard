@@ -1,19 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import {
+  candlesToTuples,
   computeParabolicMetrics,
-  computeParabolicVolumes,
+  computeParabolicVolumesFromCandles,
+  computeVolumeRatios,
+  fetchParabolicCandles,
   pointsFromRow,
   serializeParabolicCase,
+  validateExtraPoints,
   validateParabolicPoints,
 } from '@/lib/parabolic';
-import { REQUIRED_POINT_KEYS, TIMEFRAME_OPTIONS, type ParabolicPoints } from '@/types/parabolic';
+import { REQUIRED_POINT_KEYS, SHAPE_TYPES, TIMEFRAME_OPTIONS, type ParabolicPoints, type ShapeType } from '@/types/parabolic';
+import { ShapeType as PrismaShapeType } from '@/generated/prisma/enums';
 
 export const maxDuration = 60;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parsePoint(body: any, key: string): { time: number; price: number } | null {
   const raw = body?.points?.[key];
+  if (!raw) return null;
+  const time = Number(raw.time);
+  const price = Number(raw.price);
+  if (!Number.isFinite(time) || !Number.isFinite(price)) return null;
+  return { time, price };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseExtraPoint(body: any, key: 'baseLow' | 'parabolicStart'): { time: number; price: number } | null {
+  const raw = body?.[key];
   if (!raw) return null;
   const time = Number(raw.time);
   const price = Number(raw.price);
@@ -28,18 +43,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!existing) return NextResponse.json({ error: '기록을 찾을 수 없습니다.' }, { status: 404 });
 
     const body = await req.json();
+    const touchesStructure = body.points !== undefined || body.baseLow !== undefined || body.parabolicStart !== undefined;
 
-    // Notes / final-top judgment can be patched alone without touching the points/volumes.
-    if (body.points === undefined && (body.notes !== undefined || body.finalTopYn !== undefined)) {
-      const row = await prisma.parabolicCase.update({
-        where: { id },
-        data: {
-          ...(body.notes !== undefined
-            ? { notes: typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null }
-            : {}),
-          ...(body.finalTopYn !== undefined ? { finalTopYn: typeof body.finalTopYn === 'boolean' ? body.finalTopYn : null } : {}),
-        },
-      });
+    if (!touchesStructure) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: Record<string, any> = {};
+      if (body.notes !== undefined) data.notes = typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null;
+      if (body.finalTopYn !== undefined) data.finalTopYn = typeof body.finalTopYn === 'boolean' ? body.finalTopYn : null;
+      if (body.thirdWaveOccurred !== undefined)
+        data.thirdWaveOccurred = typeof body.thirdWaveOccurred === 'boolean' ? body.thirdWaveOccurred : null;
+      if (body.slopeCount !== undefined)
+        data.slopeCount = Number.isFinite(Number(body.slopeCount)) && body.slopeCount !== null && body.slopeCount !== '' ? Math.round(Number(body.slopeCount)) : null;
+      if (body.shapeType !== undefined)
+        data.shapeType =
+          typeof body.shapeType === 'string' && (SHAPE_TYPES as readonly string[]).includes(body.shapeType)
+            ? PrismaShapeType[body.shapeType as ShapeType]
+            : null;
+
+      const row = await prisma.parabolicCase.update({ where: { id }, data });
       return NextResponse.json(serializeParabolicCase(row));
     }
 
@@ -68,21 +89,50 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    const existingBaseLow =
+      existing.baseLowTime && existing.baseLowPrice != null
+        ? { time: existing.baseLowTime.getTime(), price: existing.baseLowPrice }
+        : null;
+    const existingParabolicStart =
+      existing.parabolicStartTime && existing.parabolicStartPrice != null
+        ? { time: existing.parabolicStartTime.getTime(), price: existing.parabolicStartPrice }
+        : null;
+    const baseLow = body.baseLow === null ? null : parseExtraPoint(body, 'baseLow') ?? existingBaseLow;
+    const parabolicStart =
+      body.parabolicStart === null ? null : parseExtraPoint(body, 'parabolicStart') ?? existingParabolicStart;
+
     try {
       validateParabolicPoints(points);
+      validateExtraPoints(points, baseLow, parabolicStart);
     } catch (err) {
       return NextResponse.json({ error: err instanceof Error ? err.message : '입력값을 확인해주세요.' }, { status: 400 });
     }
 
-    const [volumes, metrics] = await Promise.all([
-      computeParabolicVolumes(symbol, timeframe, points),
-      Promise.resolve(computeParabolicMetrics(points)),
-    ]);
+    const candles = await fetchParabolicCandles(symbol, timeframe, points);
+    const volumes = computeParabolicVolumesFromCandles(candles, points);
+    const metrics = { ...computeParabolicMetrics(points), volumeRatios: computeVolumeRatios(volumes) };
 
+    const notes = body.notes !== undefined ? (typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null) : existing.notes;
     const finalTopYn =
       body.finalTopYn !== undefined ? (typeof body.finalTopYn === 'boolean' ? body.finalTopYn : null) : existing.finalTopYn;
-    const notes =
-      body.notes !== undefined ? (typeof body.notes === 'string' && body.notes.trim() ? body.notes.trim() : null) : existing.notes;
+    const thirdWaveOccurred =
+      body.thirdWaveOccurred !== undefined
+        ? typeof body.thirdWaveOccurred === 'boolean'
+          ? body.thirdWaveOccurred
+          : null
+        : existing.thirdWaveOccurred;
+    const slopeCount =
+      body.slopeCount !== undefined
+        ? Number.isFinite(Number(body.slopeCount)) && body.slopeCount !== null && body.slopeCount !== ''
+          ? Math.round(Number(body.slopeCount))
+          : null
+        : existing.slopeCount;
+    const shapeType =
+      body.shapeType !== undefined
+        ? typeof body.shapeType === 'string' && (SHAPE_TYPES as readonly string[]).includes(body.shapeType)
+          ? PrismaShapeType[body.shapeType as ShapeType]
+          : null
+        : existing.shapeType;
 
     const row = await prisma.parabolicCase.update({
       where: { id },
@@ -107,9 +157,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         r1Price: points.r1.price,
         l4Time: points.l4 ? new Date(points.l4.time) : null,
         l4Price: points.l4 ? points.l4.price : null,
+        baseLowTime: baseLow ? new Date(baseLow.time) : null,
+        baseLowPrice: baseLow ? baseLow.price : null,
+        parabolicStartTime: parabolicStart ? new Date(parabolicStart.time) : null,
+        parabolicStartPrice: parabolicStart ? parabolicStart.price : null,
+        slopeCount,
+        shapeType,
         ...volumes,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        candles: candlesToTuples(candles) as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         metrics: metrics as any,
+        thirdWaveOccurred,
         finalTopYn,
         notes,
       },

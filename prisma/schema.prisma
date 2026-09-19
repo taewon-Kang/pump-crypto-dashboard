@@ -205,16 +205,28 @@ model BinanceSyncMeta {
   updatedAt     DateTime  @updatedAt
 }
 
+// Shape of the overall rise judged visually by the researcher — how many
+// distinct slope segments the run through H3 traces, and whether they're
+// closer to straight lines, a smooth curve, or a mix.
+enum ShapeType {
+  LINEAR
+  CURVE
+  MIXED
+}
+
 // A single hand-labeled parabolic pump structure for chart research: the
 // researcher marks the start low, three rise/pullback legs, the post-top
 // drop, and the first rebound (plus an optional next drop) by time+price,
 // and the app fills in each leg's Binance volume total and derived
-// duration/% metrics. Always Binance USDT-M futures (matches the rest of
-// the dashboard) — read-only price/volume data, nothing written back.
+// duration/%/slope/ratio metrics — a training-data row for later
+// statistical/ML work on whether a 3rd leg forms after L2 and whether H3
+// ends up being the final top. Always Binance USDT-M futures (matches the
+// rest of the dashboard) — read-only price/volume data, nothing written back.
 model ParabolicCase {
   id        String @id @default(cuid())
   symbol    String // Binance futures symbol, e.g. "ENAUSDT"
-  timeframe String // Kline interval the structure was read on, e.g. "15m", "1h", "4h"
+  exchange  String @default("binance") // stored explicitly for a future non-Binance source; every case today is Binance futures
+  timeframe String // Kline interval the structure was read on, e.g. "1h", "4h"
 
   l0Time  DateTime // 전체 펌핑 시작 저점
   l0Price Float
@@ -235,6 +247,17 @@ model ParabolicCase {
   l4Time  DateTime? // R1 이후 다음 하락 저점 — 아직 없으면 null
   l4Price Float?
 
+  // Broader shape context, both optional and independent of the L0~L4
+  // structure above — kept separate on purpose so a "4-stage" view (from
+  // the true base, through the long consolidation) and a "3-stage" view
+  // (from the actual breakout) of the same case can be compared later.
+  baseLowTime         DateTime? // 긴 횡보 이전까지 포함한 전체 바닥
+  baseLowPrice        Float?
+  parabolicStartTime  DateTime? // 실제 가속 상승이 시작된 시점
+  parabolicStartPrice Float?
+  slopeCount          Int? // 눈으로 판단한 주요 기울기 개수
+  shapeType           ShapeType?
+
   // Kline volume totals over each leg, summed server-side from Binance at
   // save time (see src/lib/parabolic.ts) — never entered manually.
   rise1Vol    Float // L0→H1
@@ -245,18 +268,28 @@ model ParabolicCase {
   postDropVol Float // H3→L3
   reboundVol  Float // L3→R1
 
-  // Snapshot of derived per-leg %/duration and structure ratios, computed
-  // once at save time from the points above (see computeParabolicMetrics in
-  // src/lib/parabolic.ts). Kept as a snapshot — like entryPrice elsewhere in
-  // this schema — so a later change to the calculation doesn't silently
-  // reshape historical cases.
+  // Raw OHLCV candles (Binance futures, this case's timeframe) spanning
+  // L0 through L4/R1, as compact [timestamp, open, high, low, close, volume]
+  // tuples — kept alongside the leg volume totals so later
+  // statistical/ML work has the full series, not just the aggregates.
+  candles Json?
+
+  // Snapshot of derived per-leg %/duration/slope and structure ratios,
+  // computed once at save time from the points above (see
+  // computeParabolicMetrics in src/lib/parabolic.ts). Kept as a snapshot —
+  // like entryPrice elsewhere in this schema — so a later change to the
+  // calculation doesn't silently reshape historical cases.
   metrics Json
 
-  // H3가 최종 고점이면 true, 아니면 false. Null = 아직 판단 보류(관찰 중).
-  // Manual judgment call — never inferred from the points above, since that
-  // would require price knowledge past L4.
-  finalTopYn Boolean?
-  notes      String?
+  // Labels for later statistical/ML training — deliberately separate from
+  // the computed `metrics` snapshot since these are judgment calls the
+  // researcher can revise at any time (see the PATCH route), not derived
+  // from the points. Null = not yet labeled.
+  // L2 이후 의미 있는 3차 상승(H3)이 실제로 발생했다고 볼 수 있는지.
+  thirdWaveOccurred Boolean?
+  // H3가 최종 고점이면 true, 아니면 false.
+  finalTopYn        Boolean?
+  notes             String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

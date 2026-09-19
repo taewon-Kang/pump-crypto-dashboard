@@ -4,16 +4,18 @@ import { createChart, ColorType, CrosshairMode, type IChartApi, type ISeriesApi,
 import type { KlineRaw } from '@/types';
 import { CHART_COLORS, observeChartResize } from '@/lib/chart';
 import { getPriceFormat, formatLegendTime } from '@/lib/format';
-import { POINT_KEYS, POINT_LABELS, type ParabolicPoints, type PointKey } from '@/types/parabolic';
+import { ALL_POINT_KEYS, ALL_POINT_LABELS, EXTRA_POINT_KEYS, type AnyPointKey, type ParabolicPoint } from '@/types/parabolic';
 
-const HIGH_KEYS = new Set<PointKey>(['h1', 'h2', 'h3', 'r1']);
+const HIGH_KEYS = new Set<AnyPointKey>(['h1', 'h2', 'h3', 'r1']);
+const EXTRA_KEY_SET = new Set<AnyPointKey>(EXTRA_POINT_KEYS);
+const EXTRA_MARKER_TEXT: Record<string, string> = { baseLow: 'BASE', parabolicStart: 'START' };
 
 interface Props {
   symbol: string;
   timeframe: string;
-  points: ParabolicPoints;
-  activeKey: PointKey;
-  onPick: (key: PointKey, point: { time: number; price: number }) => void;
+  points: Partial<Record<AnyPointKey, ParabolicPoint | null>>;
+  activeKey: AnyPointKey;
+  onPick: (key: AnyPointKey, point: { time: number; price: number }) => void;
 }
 
 /**
@@ -151,18 +153,19 @@ export default function ParabolicChartPicker({ symbol, timeframe, points, active
   useEffect(() => {
     if (!seriesRef.current) return;
     const markers: SeriesMarker<Time>[] = [];
-    for (const key of POINT_KEYS) {
+    for (const key of ALL_POINT_KEYS) {
       const p = points[key];
       if (!p) continue;
       const t = Math.floor(p.time / 1000);
       if (!dataMapRef.current.has(t)) continue; // not a bar on the currently-loaded/timeframe series
+      const isExtra = EXTRA_KEY_SET.has(key);
       const isHigh = HIGH_KEYS.has(key);
       markers.push({
         time: t as Time,
         position: isHigh ? 'aboveBar' : 'belowBar',
-        color: key === activeKey ? '#3B82F6' : isHigh ? CHART_COLORS.down : CHART_COLORS.up,
-        shape: isHigh ? 'arrowDown' : 'arrowUp',
-        text: key.toUpperCase(),
+        color: key === activeKey ? '#3B82F6' : isExtra ? '#A855F7' : isHigh ? CHART_COLORS.down : CHART_COLORS.up,
+        shape: isExtra ? 'circle' : isHigh ? 'arrowDown' : 'arrowUp',
+        text: isExtra ? EXTRA_MARKER_TEXT[key] : key.toUpperCase(),
       });
     }
     markers.sort((a, b) => (a.time as number) - (b.time as number));
@@ -173,7 +176,7 @@ export default function ParabolicChartPicker({ symbol, timeframe, points, active
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2 px-0.5">
         <span className="text-[11px] text-gray-500">
-          <span className="text-blue-400 font-semibold">{POINT_LABELS[activeKey]}</span> 지정 중 — 캔들을 클릭하면{' '}
+          <span className="text-blue-400 font-semibold">{ALL_POINT_LABELS[activeKey]}</span> 지정 중 — 캔들을 클릭하면{' '}
           {HIGH_KEYS.has(activeKey) ? '고가' : '저가'}로 자동 입력됩니다
         </span>
         {candles.length > 0 && (

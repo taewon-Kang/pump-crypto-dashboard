@@ -44,6 +44,20 @@ export default function ParabolicPage() {
     await load();
   }
 
+  async function handleUpdateLabels(id: string, patch: { finalTopYn?: boolean | null; thirdWaveOccurred?: boolean | null }) {
+    const res = await fetch(`/api/parabolic/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    if (!res.ok) {
+      setError('라벨 저장에 실패했습니다.');
+      return;
+    }
+    const updated: ParabolicCase = await res.json();
+    setCases((cur) => cur.map((c) => (c.id === id ? updated : c)));
+  }
+
   async function handleDelete(id: string) {
     const prev = cases;
     setCases((cur) => cur.filter((c) => c.id !== id));
@@ -125,7 +139,7 @@ export default function ParabolicPage() {
       ) : (
         <div className="space-y-2.5">
           {cases.map((c) => (
-            <ParabolicCaseCard key={c.id} item={c} onDelete={handleDelete} />
+            <ParabolicCaseCard key={c.id} item={c} onDelete={handleDelete} onUpdateLabels={handleUpdateLabels} />
           ))}
         </div>
       )}

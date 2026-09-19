@@ -9,6 +9,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "backfill:ls-charts": "tsx scripts/backfill-ls-charts.ts",
+    "backfill:parabolic": "tsx scripts/backfill-parabolic-metrics.ts",
     "sync:binance": "tsx scripts/sync-binance.ts"
   },
   "dependencies": {
