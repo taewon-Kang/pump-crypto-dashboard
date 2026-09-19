@@ -28,11 +28,11 @@ enum PumpPhase {
 // entryPrice is snapshotted at write time from Binance's futures kline
 // covering entryTime, so later reads don't drift if history changes.
 model LongShortEntry {
-  id         String   @id @default(cuid())
-  symbol     String // Binance futures symbol, e.g. "SUIUSDT"
-  side       Side
-  entryTime  DateTime
-  entryPrice Float
+  id              String     @id @default(cuid())
+  symbol          String // Binance futures symbol, e.g. "SUIUSDT"
+  side            Side
+  entryTime       DateTime
+  entryPrice      Float
   // BTCUSDT futures price at entryTime — snapshotted the same way as
   // entryPrice, so BTC's own checkpoint metrics can be benchmarked alongside
   // this entry's. Nullable so older rows (and any failed lookup) stay valid;
@@ -43,16 +43,16 @@ model LongShortEntry {
   // Whether this was money actually put on the trade vs. a call logged only
   // to track a read on the market ("관점용"). Defaults true so existing rows
   // (all real trades except two backfilled exceptions) stay correct as-is.
-  isRealTrade Boolean @default(true)
+  isRealTrade     Boolean    @default(true)
   // When set, this entry is considered closed as of this timestamp: its
   // checkpoint metrics stop advancing past endedAt instead of tracking the
   // live price.
-  endedAt   DateTime?
-  createdAt DateTime  @default(now())
+  endedAt         DateTime?
+  createdAt       DateTime   @default(now())
   // Daily-candle chart screenshot (Vercel Blob URL) auto-captured around
   // entryTime — the price context the call was made in, plus how it played
   // out afterward. Null until generated (see src/lib/chartSnapshot.ts).
-  chartImageUrl String?
+  chartImageUrl   String?
 
   // Manually-linked real Binance position(s) synced from the account's own
   // trade history (see BinancePosition below). Optional, user-set — never
@@ -177,7 +177,7 @@ model PostCloseObservation {
   price      Float
   // Directional return vs. the position's avgExitPrice — how the price
   // moved after the user actually got out, not a trading result.
-  returnPct Float
+  returnPct  Float
 
   createdAt DateTime @default(now())
 
@@ -203,4 +203,64 @@ model BinanceSyncMeta {
   lastRunStatus String? // "ok" | "error"
   lastError     String?
   updatedAt     DateTime  @updatedAt
+}
+
+// A single hand-labeled parabolic pump structure for chart research: the
+// researcher marks the start low, three rise/pullback legs, the post-top
+// drop, and the first rebound (plus an optional next drop) by time+price,
+// and the app fills in each leg's Binance volume total and derived
+// duration/% metrics. Always Binance USDT-M futures (matches the rest of
+// the dashboard) — read-only price/volume data, nothing written back.
+model ParabolicCase {
+  id        String @id @default(cuid())
+  symbol    String // Binance futures symbol, e.g. "ENAUSDT"
+  timeframe String // Kline interval the structure was read on, e.g. "15m", "1h", "4h"
+
+  l0Time  DateTime // 전체 펌핑 시작 저점
+  l0Price Float
+  h1Time  DateTime // 1차 상승 고점
+  h1Price Float
+  l1Time  DateTime // 1차 조정 저점
+  l1Price Float
+  h2Time  DateTime // 2차 상승 고점
+  h2Price Float
+  l2Time  DateTime // 2차 조정 저점
+  l2Price Float
+  h3Time  DateTime // 3차 상승 고점
+  h3Price Float
+  l3Time  DateTime // H3 이후 첫 의미 있는 하락 저점
+  l3Price Float
+  r1Time  DateTime // L3 이후 첫 의미 있는 반등 고점
+  r1Price Float
+  l4Time  DateTime? // R1 이후 다음 하락 저점 — 아직 없으면 null
+  l4Price Float?
+
+  // Kline volume totals over each leg, summed server-side from Binance at
+  // save time (see src/lib/parabolic.ts) — never entered manually.
+  rise1Vol    Float // L0→H1
+  drop1Vol    Float // H1→L1
+  rise2Vol    Float // L1→H2
+  drop2Vol    Float // H2→L2
+  rise3Vol    Float // L2→H3
+  postDropVol Float // H3→L3
+  reboundVol  Float // L3→R1
+
+  // Snapshot of derived per-leg %/duration and structure ratios, computed
+  // once at save time from the points above (see computeParabolicMetrics in
+  // src/lib/parabolic.ts). Kept as a snapshot — like entryPrice elsewhere in
+  // this schema — so a later change to the calculation doesn't silently
+  // reshape historical cases.
+  metrics Json
+
+  // H3가 최종 고점이면 true, 아니면 false. Null = 아직 판단 보류(관찰 중).
+  // Manual judgment call — never inferred from the points above, since that
+  // would require price knowledge past L4.
+  finalTopYn Boolean?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([symbol])
+  @@index([l0Time])
 }

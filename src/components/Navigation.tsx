@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { label: 'L/S Tracker', href: '/longshort' },
   { label: '실거래 내역', href: '/longshort/real-trades' },
   { label: '통계', href: '/statistics' },
+  { label: '파라볼릭 리서치', href: '/parabolic' },
 ];
 
 export default function Navigation() {
